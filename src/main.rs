@@ -28,7 +28,9 @@ fn main() {
         timer: Box::pin(pasts::Past::new((), |()| async_std::task::sleep(std::time::Duration::from_secs(1)))),
         cursive_stepper: cursive_stepper::CursiveRunnableStepper{ curs: curs.into_runner() },
         counter: 0,
-        tui: None
+        tui: None,
+        listener: stick::Listener::default(),
+        controllers: vec![]
     };
 
     tui::init(&mut state);

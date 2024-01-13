@@ -18,11 +18,23 @@
 
 use crate::data::ProgramState;
 use cursive::{
-    views::{TextContent, TextView}
+    align::HAlign,
+    Rect,
+    theme,
+    view::{Offset, Position, Resizable},
+    views::{DummyView, FixedLayout, LinearLayout, OnLayoutView, Panel, TextContent, TextView},
+    View,
+    XY
 };
 
 pub struct TuiData {
-    pub tick: TextContent
+    pub text_content: Texts
+}
+
+pub struct Texts {
+    pub controller_name: TextContent,
+    pub controller_event: TextContent,
+    pub tick: TextContent,
 }
 
 pub fn init(state: &mut ProgramState) {
@@ -31,23 +43,44 @@ pub fn init(state: &mut ProgramState) {
 
     init_theme(curs);
 
-    let tick = TextContent::new("");
-    let tick_label = TextView::new_with_content(tick.clone());
-    curs.add_layer(tick_label);
+    let text_content = init_views(curs);
 
     let tui_data = TuiData{
-        tick
+        text_content
     };
     state.tui = Some(tui_data);
+}
+
+fn init_views(curs: &mut cursive::Cursive) -> Texts {
+    let tick = TextContent::new("");
+    let tick_label = TextView::new_with_content(tick.clone());
+    curs.screen_mut().add_layer_at(
+        Position::new(Offset::Absolute(0), Offset::Absolute(1)),
+        tick_label
+    );
+
+    let controller_name = TextContent::new("(disconnected)");
+    let controller_event = TextContent::new("");
+    curs.screen_mut().add_layer_at(
+        Position::new(Offset::Absolute(15), Offset::Absolute(1)),
+        Panel::new(LinearLayout::vertical()
+            .child(TextView::new_with_content(controller_name.clone()))
+            .child(TextView::new_with_content(controller_event.clone()))
+        )
+        .title("Controller")
+        .title_position(HAlign::Left)
+    );
+
+    Texts{ controller_name, controller_event, tick }
 }
 
 fn init_theme(curs: &mut cursive::Cursive) {
     let mut theme = curs.current_theme().clone();
     theme.shadow = false;
-    theme.borders = cursive::theme::BorderStyle::None;
-    theme.palette[cursive::theme::PaletteColor::View] = cursive::theme::BaseColor::Black.light();
-    theme.palette[cursive::theme::PaletteColor::Background] = cursive::theme::BaseColor::Black.dark();
-    theme.palette[cursive::theme::PaletteColor::TitlePrimary] = cursive::theme::BaseColor::White.light();
-    theme.palette[cursive::theme::PaletteColor::Primary] = cursive::theme::BaseColor::White.dark();
+    theme.borders = theme::BorderStyle::None;
+    theme.palette[theme::PaletteColor::View] = theme::Color::Rgb(60, 60, 60);
+    theme.palette[theme::PaletteColor::Background] = theme::Color::Rgb(30, 30, 30);
+    theme.palette[theme::PaletteColor::TitlePrimary] = theme::Color::Rgb(255, 255, 255);
+    theme.palette[theme::PaletteColor::Primary] = theme::Color::Rgb(180, 180, 180);
     curs.set_theme(theme);
 }

@@ -24,5 +24,13 @@ pub struct ProgramState {
     pub counter: usize,
     pub cursive_stepper: CursiveRunnableStepper,
     pub timer: Pin<Box<dyn Future<Output = ()>>>,
-    pub tui: Option<TuiData> // always `Some` after program start
+    pub tui: Option<TuiData>, // always `Some` after program start
+    pub listener: stick::Listener,
+    pub controllers: Vec<stick::Controller>,
+}
+
+impl ProgramState {
+    pub fn tui(&self) -> &TuiData { self.tui.as_ref().unwrap() }
+
+    pub fn refresh_tui(&mut self) { self.cursive_stepper.curs.refresh(); }
 }
