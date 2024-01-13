@@ -1,42 +1,47 @@
-use crate::data::ProgramState;
-use crate::key_poller::KeyPoller;
-use std::rc::Rc;
+// TPTool (Telescope Pointing Tool) — following a target in the sky
+// Copyright (C) 2024 Filip Szczerek <ga.software@yahoo.com>
+//
+// This file is part of TPTool
+//
+// TPTool is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License version 3
+// as published by the Free Software Foundation.
+//
+// TPTool is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
+//
 
-pub async fn event_loop(window: Rc<pancurses::Window>) {
-    let mut state = ProgramState{
-        counter: 0,
-        window: Rc::clone(&window),
-        key_poller: KeyPoller::new(window),
-        timer: Box::pin(pasts::Past::new((), |()| async_std::task::sleep(std::time::Duration::from_secs(1)))),
-    };
+use core::task::Poll;
+use crate::{cursive_stepper::Running, data::ProgramState};
 
-    let _ = pasts::Loop::new(&mut state)
-        .when(|s| &mut s.key_poller, on_key)
+pub async fn event_loop(mut state: ProgramState) {
+    pasts::Loop::new(&mut state)
         .when(|s| &mut s.timer, on_timer)
+        .when(|s| &mut s.cursive_stepper, on_cursive_step)
         .await;
-
-    pancurses::endwin();
 }
 
-fn on_timer(state: &mut ProgramState, _: ()) -> std::task::Poll<()> {
-    print_at(&state.window, 6, 0, &format!("tick: {}", state.counter), true);
+fn on_timer(state: &mut ProgramState, _: ()) -> Poll<()> {
+    state.tui.as_ref().unwrap().tick.set_content(format!("tick: {}", state.counter));
+    state.cursive_stepper.curs.refresh();
     state.counter += 1;
 
-    std::task::Poll::Pending
+    Poll::Pending
 }
 
-fn on_key(state: &mut ProgramState, input: pancurses::Input) -> std::task::Poll<()> {
-    print_at(&state.window, 4, 0, &format!("input: {:?}", input), true);
-
-    match input {
-        pancurses::Input::Character('q') => std::task::Poll::Ready(()),
-        _ => std::task::Poll::Pending
+fn on_cursive_step(_: &mut ProgramState, running: Running) -> Poll<()> {
+    if running.0 {
+        Poll::Pending
+    } else {
+        Poll::Ready(())
     }
 }
 
-fn print_at(window: &pancurses::Window, y: i32, x: i32, s: &str, refresh: bool) {
-    window.mv(y, x);
-    window.clrtoeol();
-    window.printw(s);
-    if refresh { window.refresh(); }
+fn nop<S, T>(_: &mut S, _: T) -> Poll<T> {
+    Poll::Pending
 }

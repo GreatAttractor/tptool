@@ -16,22 +16,26 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-mod cursive_stepper;
-mod data;
-mod event_handling;
-mod tui;
+use core::{future::Future, task::{Context, Poll}};
+use cursive::{CursiveRunnable, CursiveRunner};
+use std::pin::Pin;
 
-fn main() {
-	let curs = cursive::default();
+pub struct CursiveRunnableStepper {
+    pub curs: CursiveRunner<CursiveRunnable>
+}
 
-    let mut state = data::ProgramState{
-        timer: Box::pin(pasts::Past::new((), |()| async_std::task::sleep(std::time::Duration::from_secs(1)))),
-        cursive_stepper: cursive_stepper::CursiveRunnableStepper{ curs: curs.into_runner() },
-        counter: 0,
-        tui: None
-    };
+pub struct Running(pub bool);
 
-    tui::init(&mut state);
+impl Future for CursiveRunnableStepper {
+    type Output = Running;
 
-    pasts::block_on(event_handling::event_loop(state));
+    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Running> {
+        if self.curs.is_running() {
+            let received_something = self.curs.process_events();
+            self.curs.post_events(received_something);
+            Poll::Ready(Running(true))
+        } else {
+            Poll::Ready(Running(false))
+        }
+    }
 }

@@ -2,12 +2,13 @@
 name = "tptool"
 version = "0.1.0"
 edition = "2021"
+authors = ["Filip Szczerek <ga.software@yahoo.com>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 async-std = "1.12.0"
-pancurses = "0.17.0"
+cursive = "0.20.0"
 pasts = "0.8"
 polling = "3.3.0"
 pointing-utils = { path = "ext/pointing-utils" }
