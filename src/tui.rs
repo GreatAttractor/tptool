@@ -20,6 +20,7 @@ use crate::data::ProgramState;
 use cursive::{
     align::HAlign,
     Rect,
+    reexports::enumset,
     theme,
     view::{Offset, Position, Resizable},
     views::{DummyView, FixedLayout, LinearLayout, OnLayoutView, Panel, TextContent, TextView},
@@ -35,6 +36,10 @@ pub struct Texts {
     pub controller_name: TextContent,
     pub controller_event: TextContent,
     pub tick: TextContent,
+    pub target_dist: TextContent,
+    pub target_spd: TextContent,
+    pub target_az: TextContent,
+    pub target_alt: TextContent,
 }
 
 pub fn init(state: &mut ProgramState) {
@@ -62,7 +67,7 @@ fn init_views(curs: &mut cursive::Cursive) -> Texts {
     let controller_name = TextContent::new("(disconnected)");
     let controller_event = TextContent::new("");
     curs.screen_mut().add_layer_at(
-        Position::new(Offset::Absolute(15), Offset::Absolute(1)),
+        Position::new(Offset::Absolute(1), Offset::Absolute(8)),
         Panel::new(LinearLayout::vertical()
             .child(TextView::new_with_content(controller_name.clone()))
             .child(TextView::new_with_content(controller_event.clone()))
@@ -71,7 +76,45 @@ fn init_views(curs: &mut cursive::Cursive) -> Texts {
         .title_position(HAlign::Left)
     );
 
-    Texts{ controller_name, controller_event, tick }
+    let target_dist = TextContent::new("");
+    let target_spd = TextContent::new("");
+    let target_az = TextContent::new("");
+    let target_alt = TextContent::new("");
+    curs.screen_mut().add_layer_at(
+        Position::new(Offset::Absolute(45), Offset::Absolute(1)),
+        Panel::new(LinearLayout::vertical()
+            .child(
+                LinearLayout::horizontal()
+                    .child(label_and_content("dist. ", target_dist.clone()))
+                    .child(DummyView{}.min_width(1))
+                    .child(label_and_content("spd. ", target_spd.clone()))
+            )
+            .child(
+                LinearLayout::horizontal()
+                    .child(label_and_content("az. ", target_az.clone()))
+                    .child(DummyView{}.min_width(1))
+                    .child(label_and_content("alt. ", target_alt.clone()))
+            )
+        )
+        .title("Target")
+        .title_position(HAlign::Left)
+    );
+
+    Texts{ controller_name, controller_event, tick, target_dist, target_spd, target_az, target_alt }
+}
+
+fn label_and_content(label: &str, content: TextContent) -> LinearLayout {
+    LinearLayout::horizontal()
+        .child(TextView::new(label))
+        .child(TextView::new_with_content(content)
+            .style(theme::Style{
+                effects: enumset::EnumSet::from(theme::Effect::Simple),
+                color: theme::ColorStyle{
+                    front: theme::ColorType::Color(theme::Color::Rgb(255, 255, 255)),
+                    back: theme::ColorType::InheritParent
+                }
+            })
+        )
 }
 
 fn init_theme(curs: &mut cursive::Cursive) {

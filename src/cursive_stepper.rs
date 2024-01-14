@@ -16,7 +16,7 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use core::{future::Future, task::{Context, Poll}};
+use std::{future::Future, task::{Context, Poll}};
 use cursive::{CursiveRunnable, CursiveRunner};
 use std::pin::Pin;
 

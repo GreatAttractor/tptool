@@ -16,17 +16,23 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use core::task::Poll;
+use cgmath::{Deg, EuclideanSpace, InnerSpace, Rad, Vector3};
 use crate::{cursive_stepper::Running, data::ProgramState};
+use pointing_utils::{cgmath, TargetInfoMessage, uom};
+use std::task::Poll;
+use uom::{si::f64, si::{length, velocity}};
+
 
 // TODO: make configurable
 const CONTROLLER_ID: u64 = 0x03006D041DC21440;
 
 pub async fn event_loop(mut state: ProgramState) {
+
     pasts::Loop::new(&mut state)
         .when(|s| &mut s.listener, on_controller_connected)
         .poll(|s| &mut s.controllers, on_controller_event)
         .when(|s| &mut s.timer, on_timer)
+        .when(|s| &mut s.data_receiver, on_data_received)
         // FIXME: why no controller and timer events when this is specified first? Too frequent polls/busy loop?
         // Should we use STDIN polling?
         .when(|s| &mut s.cursive_stepper, on_cursive_step)
@@ -49,7 +55,7 @@ fn on_cursive_step(_: &mut ProgramState, running: Running) -> Poll<()> {
     }
 }
 
-fn nop<S, T>(_: &mut S, _: T) -> Poll<T> {
+fn nop<S, C, T>(_: &mut S, _: C) -> Poll<T> {
     Poll::Pending
 }
 
@@ -75,4 +81,26 @@ fn on_controller_event(state: &mut ProgramState, index: usize, event: stick::Eve
     }
 
     std::task::Poll::Pending
+}
+
+fn on_data_received(state: &mut ProgramState, message: Option<Result<String, std::io::Error>>) -> Poll<()> {
+    //TODO: when received None, stop reception
+
+    let ti = message.unwrap().unwrap().parse::<TargetInfoMessage>().unwrap();
+    let len = ti.position.0.to_vec().magnitude();
+    let dist = f64::Length::new::<length::meter>(len);
+    let speed = f64::Velocity::new::<velocity::meter_per_second>(ti.velocity.0.magnitude());
+    let atan2 = Deg::from(Rad(ti.position.0.y.atan2(ti.position.0.x)));
+    let azimuth = if atan2 < Deg(0.0) && atan2 > Deg(-180.0) { -atan2 } else { Deg(360.0) - atan2 };
+    let altitude = Deg::from(Rad((ti.position.0.z / len).asin()));
+
+    let texts = &state.tui().text_content;
+    texts.target_dist.set_content(format!("{:.1} km", dist.get::<length::kilometer>(),));
+    texts.target_spd.set_content(format!("{:.0} km/h", speed.get::<velocity::kilometer_per_hour>()));
+    texts.target_az.set_content(format!("{:.1}°", azimuth.0));
+    texts.target_alt.set_content(format!("{:.1}°", altitude.0));
+
+    state.refresh_tui();
+
+    Poll::Pending
 }

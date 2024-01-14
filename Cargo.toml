@@ -8,9 +8,14 @@ authors = ["Filip Szczerek <ga.software@yahoo.com>"]
 
 [dependencies]
 async-std = "1.12.0"
+chrono = "0.4.12"
 cursive = "0.20.0"
+futures = "0.3.30"
+log = "0.4.20"
 pasts = "0.8"
 polling = "3.3.0"
 pointing-utils = { path = "ext/pointing-utils" }
+simplelog = "0.12.1"
 # Needed until https://github.com/ardaku/stick/pull/38 is merged to upstream repo.
 stick = { git = "https://github.com/GreatAttractor/stick.git", rev = "6269405a7d6d812b7497715b843a822a4d3f6dcd" }
+time = "0.3.30" # why needed explicitly? simplelog's use not enough?
