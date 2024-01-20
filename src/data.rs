@@ -17,9 +17,25 @@
 //
 
 use async_std::stream::Stream;
-use crate::{cursive_stepper::CursiveRunnableStepper, tui::TuiData};
+use crate::{cursive_stepper::CursiveRunnableStepper, mount::Mount, tui::TuiData};
+use pointing_utils::uom;
 use std::{future::Future, marker::Unpin, pin::Pin, task::{Context, Poll}};
+use uom::{si::f64, si::angular_velocity};
 
+pub struct Slewing {
+    pub axis1: f64::AngularVelocity,
+    pub axis2: f64::AngularVelocity,
+}
+
+impl Default for Slewing {
+    fn default() -> Slewing {
+        Slewing{ axis1: deg_per_s(0.0), axis2: deg_per_s(0.0) }
+    }
+}
+
+pub fn deg_per_s(value: f64) -> f64::AngularVelocity {
+    f64::AngularVelocity::new::<angular_velocity::degree_per_second>(value)
+}
 
 pub struct ProgramState {
     pub cursive_stepper: CursiveRunnableStepper,
@@ -27,7 +43,9 @@ pub struct ProgramState {
     pub tui: Option<TuiData>, // always `Some` after program start
     pub listener: stick::Listener,
     pub controllers: Vec<stick::Controller>,
-    pub data_receiver: AsyncLinesWrapper<async_std::io::BufReader<async_std::net::TcpStream>>
+    pub data_receiver: AsyncLinesWrapper<async_std::io::BufReader<async_std::net::TcpStream>>,
+    pub mount: Box<dyn Mount>,
+    pub slewing: Slewing
 }
 
 impl ProgramState {

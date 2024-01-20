@@ -17,7 +17,7 @@
 //
 
 use cgmath::{Deg, EuclideanSpace, InnerSpace, Rad, Vector3};
-use crate::{cursive_stepper::Running, data::ProgramState};
+use crate::{cursive_stepper::Running, data, data::ProgramState};
 use pointing_utils::{cgmath, TargetInfoMessage, uom};
 use std::task::Poll;
 use uom::{si::f64, si::{angular_velocity, length, velocity}};
@@ -72,7 +72,32 @@ fn on_controller_event(state: &mut ProgramState, index: usize, event: stick::Eve
         }
         state.controllers.remove(index);
     } else {
-        state.tui().text_content.controller_event.set_content(format!("{}", event));
+        let slew_speed = data::deg_per_s(2.0);
+        let mut slew_change = false;
+
+        match event {
+            stick::Event::PovLeft(down) => {
+                state.slewing.axis1 = if down { -slew_speed } else { data::deg_per_s(0.0) };
+                slew_change = true;
+            },
+            stick::Event::PovRight(down) => {
+                state.slewing.axis1 = if down { slew_speed } else { data::deg_per_s(0.0) };
+                slew_change = true;
+            },
+            stick::Event::PovUp(down) => {
+                state.slewing.axis2 = if down { slew_speed } else { data::deg_per_s(0.0) };
+                slew_change = true;
+            },
+            stick::Event::PovDown(down) => {
+                state.slewing.axis2 = if down { -slew_speed } else { data::deg_per_s(0.0) };
+                slew_change = true;
+            },
+            _ => ()
+        }
+
+        if slew_change { state.mount.slew(state.slewing.axis1, state.slewing.axis2).unwrap(); }
+
+        state.tui().text_content.controller_event.set_content(format!("{}", event)); //TESTING #########
         state.refresh_tui();
     }
 

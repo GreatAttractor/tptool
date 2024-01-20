@@ -4,6 +4,8 @@ use pointing_utils::uom;
 use std::error::Error;
 use uom::si::f64;
 
+pub use simulator::Simulator;
+
 pub trait Mount {
     fn get_info(&self) -> String;
 

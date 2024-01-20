@@ -1,6 +1,6 @@
 use crate::mount::Mount;
 use std::error::Error;
-use pointing_utils::{MountSimulatorMessage, uom};
+use pointing_utils::{MountSimulatorMessage, read_line, uom};
 use std::{io::{Read, Write}, net::TcpStream};
 use uom::{si::f64, si::{angle, angular_velocity}};
 
@@ -55,19 +55,4 @@ impl Mount for Simulator {
             Err(format!("invalid message: {}", resp_str).into())
         }
     }
-}
-
-fn read_line<R: Read>(r: &mut R) -> Result<String, Box<dyn Error>> {
-    let mut buf = Vec::<u8>::new();
-    loop {
-        let b_len = buf.len();
-        if b_len > 512 { return Err("message too long".into()); }
-        r.read_exact(&mut buf[b_len - 1..b_len])?;
-        if buf[b_len - 1] == '\n' as u8 {
-            buf.truncate(b_len - 1);
-            break;
-        }
-    }
-
-    Ok(std::str::from_utf8(&buf)?.into())
 }

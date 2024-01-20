@@ -25,7 +25,15 @@ mod tui;
 use data::AsyncLinesWrapper;
 use async_std::io::prelude::BufReadExt;
 
+const MOUNT_SERVER_PORT: u16 = 45501;
+const DATA_SOURCE_PORT: u16 = 45500;
+
 fn main() {
+    std::panic::set_hook(Box::new(|_| {
+        let backtrace = std::backtrace::Backtrace::force_capture();
+        log::error!("panicked!\n\n{}", backtrace);
+    }));
+
     let tz_offset = chrono::Local::now().offset().clone();
     let logfile = std::path::Path::new("tptool.log");
     println!("Logging to: {}", logfile.to_string_lossy());
@@ -47,7 +55,7 @@ fn main() {
 
     let data_receiver = AsyncLinesWrapper::new(
         async_std::io::BufReader::new(
-            futures::executor::block_on(async { async_std::net::TcpStream::connect("127.0.0.1:45500").await }).unwrap()
+            futures::executor::block_on(async { async_std::net::TcpStream::connect(format!("127.0.0.1:{}", DATA_SOURCE_PORT)).await }).unwrap()
         ).lines()
     );
 
@@ -57,7 +65,9 @@ fn main() {
         tui: None,
         listener: stick::Listener::default(),
         controllers: vec![],
-        data_receiver
+        data_receiver,
+        mount: Box::new(mount::Simulator::new(&format!("127.0.0.1:{}", MOUNT_SERVER_PORT)).unwrap()),
+        slewing: Default::default()
     };
 
     tui::init(&mut state);
