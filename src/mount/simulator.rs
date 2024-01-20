@@ -24,7 +24,7 @@ impl Mount for Simulator {
     }
 
     fn slew(&mut self, axis1: f64::AngularVelocity, axis2: f64::AngularVelocity) -> Result<(), Box<dyn Error>> {
-        self.stream.write_all(Msg::Slew(axis1, axis2).to_string().as_bytes())?;
+        self.stream.write_all(Msg::Slew{axis1, axis2}.to_string().as_bytes())?;
         let resp_str = read_line(&mut self.stream)?;
         let msg = resp_str.parse::<Msg>()?;
         if let Msg::Reply(reply) = msg {
