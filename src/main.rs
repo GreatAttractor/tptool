@@ -19,6 +19,7 @@
 mod cursive_stepper;
 mod data;
 mod event_handling;
+mod mount;
 mod tui;
 
 use data::AsyncLinesWrapper;
@@ -53,7 +54,6 @@ fn main() {
     let mut state = data::ProgramState{
         timer: Box::pin(pasts::Past::new((), |()| async_std::task::sleep(std::time::Duration::from_secs(1)))),
         cursive_stepper: cursive_stepper::CursiveRunnableStepper { curs: curs.into_runner() },
-        counter: 0,
         tui: None,
         listener: stick::Listener::default(),
         controllers: vec![],

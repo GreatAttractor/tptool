@@ -35,7 +35,6 @@ pub struct TuiData {
 pub struct Texts {
     pub controller_name: TextContent,
     pub controller_event: TextContent,
-    pub tick: TextContent,
     pub target_dist: TextContent,
     pub target_spd: TextContent,
     pub target_az: TextContent,
@@ -57,13 +56,6 @@ pub fn init(state: &mut ProgramState) {
 }
 
 fn init_views(curs: &mut cursive::Cursive) -> Texts {
-    let tick = TextContent::new("");
-    let tick_label = TextView::new_with_content(tick.clone());
-    curs.screen_mut().add_layer_at(
-        Position::new(Offset::Absolute(0), Offset::Absolute(1)),
-        tick_label
-    );
-
     let controller_name = TextContent::new("(disconnected)");
     let controller_event = TextContent::new("");
     curs.screen_mut().add_layer_at(
@@ -89,18 +81,14 @@ fn init_views(curs: &mut cursive::Cursive) -> Texts {
                     .child(DummyView{}.min_width(1))
                     .child(label_and_content("spd. ", target_spd.clone()))
             )
-            .child(
-                LinearLayout::horizontal()
-                    .child(label_and_content("az. ", target_az.clone()))
-                    .child(DummyView{}.min_width(1))
-                    .child(label_and_content("alt. ", target_alt.clone()))
-            )
+            .child(label_and_content("az. ", target_az.clone()))
+            .child(label_and_content("alt. ", target_alt.clone()))
         )
         .title("Target")
         .title_position(HAlign::Left)
     );
 
-    Texts{ controller_name, controller_event, tick, target_dist, target_spd, target_az, target_alt }
+    Texts{ controller_name, controller_event, target_dist, target_spd, target_az, target_alt }
 }
 
 fn label_and_content(label: &str, content: TextContent) -> LinearLayout {

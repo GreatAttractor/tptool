@@ -22,7 +22,6 @@ use std::{future::Future, marker::Unpin, pin::Pin, task::{Context, Poll}};
 
 
 pub struct ProgramState {
-    pub counter: usize,
     pub cursive_stepper: CursiveRunnableStepper,
     pub timer: Pin<Box<dyn Future<Output = ()>>>,
     pub tui: Option<TuiData>, // always `Some` after program start
