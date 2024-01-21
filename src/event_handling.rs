@@ -72,7 +72,7 @@ fn on_controller_event(state: &mut ProgramState, index: usize, event: stick::Eve
         }
         state.controllers.remove(index);
     } else {
-        let slew_speed = data::deg_per_s(2.0);
+        let slew_speed = data::deg_per_s(3.0);
         let mut slew_change = false;
 
         match event {
