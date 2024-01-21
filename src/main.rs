@@ -27,6 +27,7 @@ use async_std::io::prelude::BufReadExt;
 
 const MOUNT_SERVER_PORT: u16 = 45501;
 const DATA_SOURCE_PORT: u16 = 45500;
+const TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 
 fn main() {
     std::panic::set_hook(Box::new(|_| {
@@ -60,7 +61,7 @@ fn main() {
     );
 
     let mut state = data::ProgramState{
-        timer: Box::pin(pasts::Past::new((), |()| async_std::task::sleep(std::time::Duration::from_secs(1)))),
+        timer: Box::pin(pasts::Past::new((), |()| async_std::task::sleep(TIMER_INTERVAL))),
         cursive_stepper: cursive_stepper::CursiveRunnableStepper { curs: curs.into_runner() },
         tui: None,
         listener: stick::Listener::default(),

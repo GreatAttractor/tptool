@@ -20,7 +20,7 @@ use cgmath::{Deg, EuclideanSpace, InnerSpace, Rad, Vector3};
 use crate::{cursive_stepper::Running, data, data::ProgramState};
 use pointing_utils::{cgmath, TargetInfoMessage, uom};
 use std::task::Poll;
-use uom::{si::f64, si::{angular_velocity, length, velocity}};
+use uom::{si::f64, si::{angle, angular_velocity, length, velocity}};
 
 
 // TODO: make configurable
@@ -40,6 +40,14 @@ pub async fn event_loop(mut state: ProgramState) {
 }
 
 fn on_timer(state: &mut ProgramState, _: ()) -> Poll<()> {
+    let (axis1_pos, axis2_pos) = state.mount.position().unwrap();
+    let a1deg = axis1_pos.get::<angle::degree>();
+    let azimuth = if a1deg >= 0.0 && a1deg <= 180.0 { a1deg } else { 360.0 + a1deg };
+    let tui = state.tui();
+    tui.text_content.mount_az.set_content(format!("{:.2}°", azimuth));
+    tui.text_content.mount_alt.set_content(format!("{:.2}°", axis2_pos.get::<angle::degree>()));
+    state.refresh_tui();
+
     Poll::Pending
 }
 

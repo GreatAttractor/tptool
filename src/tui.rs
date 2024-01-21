@@ -39,6 +39,11 @@ pub struct Texts {
     pub target_spd: TextContent,
     pub target_az: TextContent,
     pub target_alt: TextContent,
+    pub mount_name: TextContent,
+    pub mount_az: TextContent,
+    pub mount_alt: TextContent,
+    pub mount_az_spd: TextContent,
+    pub mount_alt_spd: TextContent,
 }
 
 pub fn init(state: &mut ProgramState) {
@@ -56,6 +61,9 @@ pub fn init(state: &mut ProgramState) {
 }
 
 fn init_views(curs: &mut cursive::Cursive) -> Texts {
+    // ---------------------------------
+    // Controller
+    //
     let controller_name = TextContent::new("(disconnected)");
     let controller_event = TextContent::new("");
     curs.screen_mut().add_layer_at(
@@ -68,12 +76,38 @@ fn init_views(curs: &mut cursive::Cursive) -> Texts {
         .title_position(HAlign::Left)
     );
 
+    // ---------------------------------
+    // Mount
+    //
+    let mount_name = TextContent::new("(disconnected)");
+    let mount_az = TextContent::new("");
+    let mount_alt = TextContent::new("");
+    let mount_az_spd = TextContent::new("");
+    let mount_alt_spd = TextContent::new("");
+    curs.screen_mut().add_layer_at(
+        Position::new(Offset::Absolute(45), Offset::Absolute(1)),
+        Panel::new(LinearLayout::vertical()
+            .child(TextView::new_with_content(mount_name.clone()))
+            .child(
+                LinearLayout::horizontal()
+                    .child(label_and_content("az. ", mount_az.clone()))
+                    .child(DummyView{}.min_width(1))
+                    .child(label_and_content("alt. ", mount_alt.clone()))
+            )
+        )
+        .title("Mount")
+        .title_position(HAlign::Left)
+    );
+
+    // ---------------------------------
+    // Target
+    //
     let target_dist = TextContent::new("");
     let target_spd = TextContent::new("");
     let target_az = TextContent::new("");
     let target_alt = TextContent::new("");
     curs.screen_mut().add_layer_at(
-        Position::new(Offset::Absolute(45), Offset::Absolute(1)),
+        Position::new(Offset::Absolute(1), Offset::Absolute(1)),
         Panel::new(LinearLayout::vertical()
             .child(
                 LinearLayout::horizontal()
@@ -88,7 +122,19 @@ fn init_views(curs: &mut cursive::Cursive) -> Texts {
         .title_position(HAlign::Left)
     );
 
-    Texts{ controller_name, controller_event, target_dist, target_spd, target_az, target_alt }
+    Texts{
+        controller_name,
+        controller_event,
+        target_dist,
+        target_spd,
+        target_az,
+        target_alt,
+        mount_name,
+        mount_az,
+        mount_alt,
+        mount_az_spd,
+        mount_alt_spd
+    }
 }
 
 fn label_and_content(label: &str, content: TextContent) -> LinearLayout {
