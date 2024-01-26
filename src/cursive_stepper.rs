@@ -16,9 +16,9 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use std::{future::Future, task::{Context, Poll}};
 use cursive::{CursiveRunnable, CursiveRunner};
-use std::pin::Pin;
+use pasts::notify::Notify;
+use std::{pin::Pin, task::{Context, Poll}};
 
 pub struct CursiveRunnableStepper {
     pub curs: CursiveRunner<CursiveRunnable>
@@ -26,10 +26,10 @@ pub struct CursiveRunnableStepper {
 
 pub struct Running(pub bool);
 
-impl Future for CursiveRunnableStepper {
-    type Output = Running;
+impl Notify for CursiveRunnableStepper {
+    type Event = Running;
 
-    fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Running> {
+    fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Running> {
         if self.curs.is_running() {
             let received_something = self.curs.process_events();
             self.curs.post_events(received_something);

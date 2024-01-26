@@ -1,8 +1,26 @@
+// TPTool (Telescope Pointing Tool) — following a target in the sky
+// Copyright (C) 2024 Filip Szczerek <ga.software@yahoo.com>
+//
+// This file is part of TPTool
+//
+// TPTool is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License version 3
+// as published by the Free Software Foundation.
+//
+// TPTool is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
+//
+
 use crate::mount::Mount;
 use std::error::Error;
 use pointing_utils::{MountSimulatorMessage, read_line, uom};
-use std::{io::{Read, Write}, net::TcpStream};
-use uom::{si::f64, si::{angle, angular_velocity}};
+use std::{io::Write, net::TcpStream};
+use uom::si::f64;
 
 pub struct Simulator {
     address: String,

@@ -12,7 +12,7 @@ chrono = "0.4.12"
 cursive = "0.20.0"
 futures = "0.3.30"
 log = "0.4.20"
-pasts = "0.8"
+pasts = "0.14.3"
 polling = "3.3.0"
 pointing-utils = { path = "ext/pointing-utils" }
 simplelog = "0.12.1"

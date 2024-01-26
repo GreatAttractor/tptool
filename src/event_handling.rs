@@ -17,9 +17,9 @@
 //
 
 use cgmath::{Deg, EuclideanSpace, InnerSpace, Rad, Vector3};
-use crate::{cursive_stepper::Running, data, data::ProgramState};
+use crate::{cursive_stepper::Running, data, data::{ProgramState, TimerId, timers}};
 use pointing_utils::{cgmath, TargetInfoMessage, uom};
-use std::task::Poll;
+use std::{future::Future, task::Poll};
 use uom::{si::f64, si::{angle, angular_velocity, length, velocity}};
 
 
@@ -29,17 +29,15 @@ const CONTROLLER_ID: u64 = 0x03006D041DC21440;
 pub async fn event_loop(mut state: ProgramState) {
 
     pasts::Loop::new(&mut state)
-        .when(|s| &mut s.listener, on_controller_connected)
-        .poll(|s| &mut s.controllers, on_controller_event)
-        .when(|s| &mut s.timer, on_timer)
-        .when(|s| &mut s.data_receiver, on_data_received)
-        // FIXME: why no controller and timer events when this is specified first? Too frequent polls/busy loop?
-        // Should we use STDIN polling?
-        .when(|s| &mut s.cursive_stepper, on_cursive_step)
+        .on(|s| &mut s.cursive_stepper, on_cursive_step)
+        .on(|s| &mut s.listener, on_controller_connected)
+        .on(|s| &mut s.controllers[..], on_controller_event)
+        .on(|s| &mut s.timers[..], on_timer)
+        .on(|s| &mut s.data_receiver, on_data_received)
         .await;
 }
 
-fn on_timer(state: &mut ProgramState, _: ()) -> Poll<()> {
+fn on_main_timer(state: &mut ProgramState) {
     let (axis1_pos, axis2_pos) = state.mount.position().unwrap();
     let a1deg = axis1_pos.get::<angle::degree>();
     let azimuth = if a1deg >= 0.0 && a1deg <= 180.0 { a1deg } else { 360.0 + a1deg };
@@ -47,6 +45,14 @@ fn on_timer(state: &mut ProgramState, _: ()) -> Poll<()> {
     tui.text_content.mount_az.set_content(format!("{:.2}°", azimuth));
     tui.text_content.mount_alt.set_content(format!("{:.2}°", axis2_pos.get::<angle::degree>()));
     state.refresh_tui();
+}
+
+fn on_timer(state: &mut ProgramState, idx_id: (usize, TimerId)) -> std::task::Poll<()> {
+    let (_, id) = idx_id;
+    match id {
+        timers::MAIN => on_main_timer(state),
+        _ => ()
+    }
 
     Poll::Pending
 }
@@ -63,18 +69,31 @@ fn nop<S, C, T>(_: &mut S, _: C) -> Poll<T> {
     Poll::Pending
 }
 
-fn on_controller_connected(state: &mut ProgramState, controller: stick::Controller) -> Poll<()> {
+fn on_controller_connected(state: &mut ProgramState, mut controller: stick::Controller) -> Poll<()> {
     if controller.id() == CONTROLLER_ID {
-        state.tui().text_content.controller_name.set_content(format!("[{:016X}] {}", controller.id(), controller.name()));
+        let ctrl_str = format!("[{:016X}] {}", controller.id(), controller.name());
+        log::info!("new controller: {}", ctrl_str);
+        state.tui().text_content.controller_name.set_content(ctrl_str);
         state.refresh_tui();
     }
-    state.controllers.push(controller);
+    state.controllers.push(
+        Box::pin(pasts::notify::poll_fn(move |ctx| {
+            match std::pin::Pin::new(&mut controller).poll(ctx) {
+                Poll::Ready(event) => Poll::Ready((controller.id(), event)),
+                Poll::Pending => Poll::Pending
+            }
+        })),
+    );
+
+
     std::task::Poll::Pending
 }
 
-fn on_controller_event(state: &mut ProgramState, index: usize, event: stick::Event) -> std::task::Poll<()> {
+fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::Event))) -> std::task::Poll<()> {
+    let (index, (id, event)) = idx_val;
+
     if let stick::Event::Disconnect = event {
-        if state.controllers[index].id() == CONTROLLER_ID {
+        if id == CONTROLLER_ID {
             state.tui().text_content.controller_name.set_content("(disconnected)");
             state.refresh_tui();
         }
@@ -106,6 +125,7 @@ fn on_controller_event(state: &mut ProgramState, index: usize, event: stick::Eve
         if slew_change { state.mount.slew(state.slewing.axis1, state.slewing.axis2).unwrap(); }
 
         state.tui().text_content.controller_event.set_content(format!("{}", event)); //TESTING #########
+        log::info!("ctrl event: {}", event); //TESTING #########
         state.refresh_tui();
     }
 

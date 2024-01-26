@@ -22,24 +22,24 @@ mod event_handling;
 mod mount;
 mod tui;
 
-use data::AsyncLinesWrapper;
-use async_std::io::prelude::BufReadExt;
+use async_std::{io::prelude::BufReadExt, stream::Stream};
+use std::{future::Future, pin::Pin};
 
 const MOUNT_SERVER_PORT: u16 = 45501;
 const DATA_SOURCE_PORT: u16 = 45500;
-const TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+const MAIN_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 
 fn main() {
-    std::panic::set_hook(Box::new(|_| {
+    std::panic::set_hook(Box::new(|info| {
         let backtrace = std::backtrace::Backtrace::force_capture();
-        log::error!("panicked!\n\n{}", backtrace);
+        log::error!("{}\n\n{}", info, backtrace);
     }));
 
     let tz_offset = chrono::Local::now().offset().clone();
     let logfile = std::path::Path::new("tptool.log");
     println!("Logging to: {}", logfile.to_string_lossy());
     simplelog::WriteLogger::init(
-        simplelog::LevelFilter::Debug,
+        simplelog::LevelFilter::Info,
         simplelog::ConfigBuilder::new()
             .set_target_level(simplelog::LevelFilter::Error)
             .set_time_offset(time::UtcOffset::from_whole_seconds(tz_offset.local_minus_utc()).unwrap())
@@ -52,26 +52,26 @@ fn main() {
 
 	let curs = cursive::default();
 
-    log::info!("Connecting to data source...");
+    log::info!("connecting to data source...");
+    let mut data_receiver = async_std::io::BufReader::new(
+        futures::executor::block_on(async { async_std::net::TcpStream::connect(format!("127.0.0.1:{}", DATA_SOURCE_PORT)).await }).unwrap()
+    ).lines();
+    log::info!("...connected");
 
-    let data_receiver = AsyncLinesWrapper::new(
-        async_std::io::BufReader::new(
-            futures::executor::block_on(async { async_std::net::TcpStream::connect(format!("127.0.0.1:{}", DATA_SOURCE_PORT)).await }).unwrap()
-        ).lines()
-    );
+    let mut listener = stick::Listener::default();
 
     let mut state = data::ProgramState{
-        timer: Box::pin(pasts::Past::new((), |()| async_std::task::sleep(TIMER_INTERVAL))),
-        cursive_stepper: cursive_stepper::CursiveRunnableStepper { curs: curs.into_runner() },
-        tui: None,
-        listener: stick::Listener::default(),
         controllers: vec![],
-        data_receiver,
+        cursive_stepper: cursive_stepper::CursiveRunnableStepper{ curs: curs.into_runner() },
+        data_receiver: Box::pin(pasts::notify::poll_fn(move |ctx| Pin::new(&mut data_receiver).poll_next(ctx))),
+        listener: Box::pin(pasts::notify::poll_fn(move |ctx| std::pin::Pin::new(&mut listener).poll(ctx))),
         mount: Box::new(mount::Simulator::new(&format!("127.0.0.1:{}", MOUNT_SERVER_PORT)).unwrap()),
-        slewing: Default::default()
+        slewing: Default::default(),
+        timers: vec![data::Timer::new(data::timers::MAIN, MAIN_TIMER_INTERVAL)],
+        tui: None,
     };
 
     tui::init(&mut state);
 
-    pasts::block_on(event_handling::event_loop(state));
+    pasts::Executor::default().block_on(event_handling::event_loop(state));
 }

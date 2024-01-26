@@ -19,13 +19,10 @@
 use crate::data::ProgramState;
 use cursive::{
     align::HAlign,
-    Rect,
     reexports::enumset,
     theme,
     view::{Offset, Position, Resizable},
-    views::{DummyView, FixedLayout, LinearLayout, OnLayoutView, Panel, TextContent, TextView},
-    View,
-    XY
+    views::{DummyView, LinearLayout, Panel, TextContent, TextView}
 };
 
 pub struct TuiData {

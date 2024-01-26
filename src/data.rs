@@ -21,6 +21,13 @@ use crate::{cursive_stepper::CursiveRunnableStepper, mount::Mount, tui::TuiData}
 use pointing_utils::uom;
 use std::{future::Future, marker::Unpin, pin::Pin, task::{Context, Poll}};
 use uom::{si::f64, si::angular_velocity};
+use pasts::notify::Notify;
+
+pub mod timers {
+    use super::TimerId;
+
+    pub const MAIN: TimerId = 1;
+}
 
 pub struct Slewing {
     pub axis1: f64::AngularVelocity,
@@ -37,35 +44,50 @@ pub fn deg_per_s(value: f64) -> f64::AngularVelocity {
     f64::AngularVelocity::new::<angular_velocity::degree_per_second>(value)
 }
 
+pub type TimerId = u64;
+
 pub struct ProgramState {
+    pub controllers: Vec<Pin<Box<dyn pasts::notify::Notify<Event = (u64, stick::Event)>>>>,
     pub cursive_stepper: CursiveRunnableStepper,
-    pub timer: Pin<Box<dyn Future<Output = ()>>>,
-    pub tui: Option<TuiData>, // always `Some` after program start
-    pub listener: stick::Listener,
-    pub controllers: Vec<stick::Controller>,
-    pub data_receiver: AsyncLinesWrapper<async_std::io::BufReader<async_std::net::TcpStream>>,
+    pub data_receiver: Pin<Box<dyn pasts::notify::Notify<Event = Option<Result<String, std::io::Error>>>>>,
+    pub listener: Pin<Box<dyn pasts::notify::Notify<Event = stick::Controller>>>,
     pub mount: Box<dyn Mount>,
-    pub slewing: Slewing
+    pub slewing: Slewing,
+    pub timers: Vec<Timer>,
+    pub tui: Option<TuiData>, // always `Some` after program start
 }
 
 impl ProgramState {
     pub fn tui(&self) -> &TuiData { self.tui.as_ref().unwrap() }
 
-    pub fn refresh_tui(&mut self) { self.cursive_stepper.curs.refresh(); }
+    pub fn refresh_tui(&mut self) {
+        self.cursive_stepper.curs.refresh();
+    }
 }
 
-pub struct AsyncLinesWrapper<R: async_std::io::BufRead + Unpin> {
-    object: async_std::io::Lines<R>
+pub struct Timer {
+    timer: Pin<Box<dyn pasts::notify::Notify<Event = ()>>>,
+    id: TimerId
 }
 
-impl<R: async_std::io::BufRead + Unpin> AsyncLinesWrapper<R> {
-    pub fn new(object: async_std::io::Lines<R>) -> AsyncLinesWrapper<R> { AsyncLinesWrapper{ object } }
+impl Timer {
+    pub fn new(id: TimerId, interval: std::time::Duration) -> Timer {
+        Timer{
+            id,
+            timer: Box::pin(pasts::notify::future_fn(
+                move || Box::pin(async_std::task::sleep(interval))
+            ))
+        }
+    }
 }
 
-impl<R: async_std::io::BufRead + Unpin> Future for AsyncLinesWrapper<R>  {
-    type Output = Option<Result<String, std::io::Error>>;
+impl pasts::notify::Notify for Timer {
+    type Event = TimerId;
 
-    fn poll(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.object).poll_next(ctx)
+    fn poll_next(mut self: Pin<&mut Self>, t: &mut std::task::Context<'_>) -> Poll<Self::Event> {
+        match Pin::new(&mut self.timer).poll_next(t) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(_) => { Poll::Ready(self.id) }
+        }
     }
 }
