@@ -20,9 +20,12 @@ use crate::data::ProgramState;
 use cursive::{
     align::HAlign,
     reexports::enumset,
+    Rect,
     theme,
+    Vec2,
+    View,
     view::{Offset, Position, Resizable},
-    views::{DummyView, LinearLayout, Panel, TextContent, TextView}
+    views::{DummyView, FixedLayout, LinearLayout, OnLayoutView, Panel, TextContent, TextView}
 };
 
 pub struct TuiData {
@@ -47,14 +50,41 @@ pub fn init(state: &mut ProgramState) {
     let curs = &mut state.cursive_stepper.curs;
 	curs.add_global_callback('q', |c| { c.quit(); });
 
+    let tracking = state.tracking.controller();
+    curs.add_global_callback('t', move |_| {
+        if tracking.is_active() {
+            tracking.stop();
+        } else {
+            tracking.start();
+        }
+    });
+
     init_theme(curs);
 
     let text_content = init_views(curs);
+    init_command_bar(curs);
 
     let tui_data = TuiData{
         text_content
     };
     state.tui = Some(tui_data);
+}
+
+fn init_command_bar(curs: &mut cursive::Cursive) {
+    curs.screen_mut().add_transparent_layer(
+        OnLayoutView::new(
+            FixedLayout::new().child(
+                Rect::from_point(Vec2::zero()),
+                TextView::new(">F<Follow target"),
+            ),
+            |layout, size| {
+                let rect = Rect::from_size((0, size.y - 1), (size.x, 1));
+                layout.set_child_position(0, rect);
+                layout.layout(size);
+            },
+        )
+        .full_screen(),
+    );
 }
 
 fn init_views(curs: &mut cursive::Cursive) -> Texts {

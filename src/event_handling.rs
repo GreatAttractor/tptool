@@ -17,7 +17,7 @@
 //
 
 use cgmath::{Deg, EuclideanSpace, InnerSpace, Rad, Vector3};
-use crate::{cursive_stepper::Running, data, data::{ProgramState, TimerId, timers}};
+use crate::{cursive_stepper::Running, data, data::{deg, ProgramState, TimerId, timers}};
 use pointing_utils::{cgmath, TargetInfoMessage, uom};
 use std::{future::Future, task::Poll};
 use uom::{si::f64, si::{angle, angular_velocity, length, velocity}};
@@ -34,11 +34,12 @@ pub async fn event_loop(mut state: ProgramState) {
         .on(|s| &mut s.controllers[..], on_controller_event)
         .on(|s| &mut s.timers[..], on_timer)
         .on(|s| &mut s.data_receiver, on_data_received)
+        .on(|s| &mut s.tracking, nop)
         .await;
 }
 
 fn on_main_timer(state: &mut ProgramState) {
-    let (axis1_pos, axis2_pos) = state.mount.position().unwrap();
+    let (axis1_pos, axis2_pos) = state.mount.borrow_mut().position().unwrap();
     let a1deg = axis1_pos.get::<angle::degree>();
     let azimuth = if a1deg >= 0.0 && a1deg <= 180.0 { a1deg } else { 360.0 + a1deg };
     let tui = state.tui();
@@ -122,10 +123,9 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
             _ => ()
         }
 
-        if slew_change { state.mount.slew(state.slewing.axis1, state.slewing.axis2).unwrap(); }
+        if slew_change { state.mount.borrow_mut().slew(state.slewing.axis1, state.slewing.axis2).unwrap(); }
 
         state.tui().text_content.controller_event.set_content(format!("{}", event)); //TESTING #########
-        log::info!("ctrl event: {}", event); //TESTING #########
         state.refresh_tui();
     }
 
@@ -156,6 +156,13 @@ fn on_data_received(state: &mut ProgramState, message: Option<Result<String, std
     let ang_speed_az_sign = -r.cross(v_tangential).z.signum();
     let ang_speed_az = ang_speed_az_sign * radians(v_left_right.magnitude() / (r.x.powi(2) + r.y.powi(2)).sqrt());
     let ang_speed_el = v_up_down.z.signum() * radians(v_up_down.magnitude() / r_len);
+
+    *state.target.borrow_mut() = Some(data::Target{
+        azimuth: deg(azimuth.0),
+        altitude: deg(altitude.0),
+        az_spd: ang_speed_az,
+        alt_spd: ang_speed_el
+    });
 
     let texts = &state.tui().text_content;
     texts.target_dist.set_content(format!("{:.1} km", dist.get::<length::kilometer>(),));

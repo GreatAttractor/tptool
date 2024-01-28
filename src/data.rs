@@ -17,10 +17,10 @@
 //
 
 use async_std::stream::Stream;
-use crate::{cursive_stepper::CursiveRunnableStepper, mount::Mount, tui::TuiData};
+use crate::{cursive_stepper::CursiveRunnableStepper, mount::Mount, tracking::Tracking, tui::TuiData};
 use pointing_utils::uom;
-use std::{future::Future, marker::Unpin, pin::Pin, task::{Context, Poll}};
-use uom::{si::f64, si::angular_velocity};
+use std::{cell::RefCell, future::Future, marker::Unpin, pin::Pin, rc::Rc, task::{Context, Poll}};
+use uom::{si::f64, si::{angle, angular_velocity}};
 use pasts::notify::Notify;
 
 pub mod timers {
@@ -40,21 +40,32 @@ impl Default for Slewing {
     }
 }
 
+pub fn deg(value: f64) -> f64::Angle {
+    f64::Angle::new::<angle::degree>(value)
+}
+
 pub fn deg_per_s(value: f64) -> f64::AngularVelocity {
     f64::AngularVelocity::new::<angular_velocity::degree_per_second>(value)
 }
 
-pub type TimerId = u64;
+pub struct Target {
+    pub azimuth: f64::Angle,
+    pub altitude: f64::Angle,
+    pub az_spd: f64::AngularVelocity,
+    pub alt_spd: f64::AngularVelocity
+}
 
 pub struct ProgramState {
     pub controllers: Vec<Pin<Box<dyn pasts::notify::Notify<Event = (u64, stick::Event)>>>>,
     pub cursive_stepper: CursiveRunnableStepper,
     pub data_receiver: Pin<Box<dyn pasts::notify::Notify<Event = Option<Result<String, std::io::Error>>>>>,
     pub listener: Pin<Box<dyn pasts::notify::Notify<Event = stick::Controller>>>,
-    pub mount: Box<dyn Mount>,
+    pub mount: Rc<RefCell<dyn Mount>>,
     pub slewing: Slewing,
     pub timers: Vec<Timer>,
+    pub tracking: Tracking,
     pub tui: Option<TuiData>, // always `Some` after program start
+    pub target: Rc<RefCell<Option<Target>>>
 }
 
 impl ProgramState {
@@ -64,6 +75,8 @@ impl ProgramState {
         self.cursive_stepper.curs.refresh();
     }
 }
+
+pub type TimerId = u64;
 
 pub struct Timer {
     timer: Pin<Box<dyn pasts::notify::Notify<Event = ()>>>,
@@ -84,8 +97,8 @@ impl Timer {
 impl pasts::notify::Notify for Timer {
     type Event = TimerId;
 
-    fn poll_next(mut self: Pin<&mut Self>, t: &mut std::task::Context<'_>) -> Poll<Self::Event> {
-        match Pin::new(&mut self.timer).poll_next(t) {
+    fn poll_next(mut self: Pin<&mut Self>, ctx: &mut std::task::Context<'_>) -> Poll<Self::Event> {
+        match Pin::new(&mut self.timer).poll_next(ctx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(_) => { Poll::Ready(self.id) }
         }

@@ -20,16 +20,50 @@ mod cursive_stepper;
 mod data;
 mod event_handling;
 mod mount;
+mod tracking;
 mod tui;
 
 use async_std::{io::prelude::BufReadExt, stream::Stream};
-use std::{future::Future, pin::Pin};
+use std::{cell::RefCell, future::Future, pin::Pin, rc::Rc};
 
 const MOUNT_SERVER_PORT: u16 = 45501;
 const DATA_SOURCE_PORT: u16 = 45500;
 const MAIN_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 
 fn main() {
+    set_up_logging();
+
+	let curs = cursive::default();
+
+    log::info!("connecting to data source...");
+    let mut data_receiver = async_std::io::BufReader::new(
+        futures::executor::block_on(async { async_std::net::TcpStream::connect(format!("127.0.0.1:{}", DATA_SOURCE_PORT)).await }).unwrap()
+    ).lines();
+    log::info!("...connected");
+
+    let mut listener = stick::Listener::default();
+    let mount = Rc::new(RefCell::new(mount::Simulator::new(&format!("127.0.0.1:{}", MOUNT_SERVER_PORT)).unwrap()));
+    let target = Rc::new(RefCell::new(None));
+
+    let mut state = data::ProgramState{
+        controllers: vec![],
+        cursive_stepper: cursive_stepper::CursiveRunnableStepper{ curs: curs.into_runner() },
+        data_receiver: Box::pin(pasts::notify::poll_fn(move |ctx| Pin::new(&mut data_receiver).poll_next(ctx))),
+        listener: Box::pin(pasts::notify::poll_fn(move |ctx| std::pin::Pin::new(&mut listener).poll(ctx))),
+        mount: mount.clone(),
+        slewing: Default::default(),
+        target: Rc::clone(&target),
+        timers: vec![data::Timer::new(data::timers::MAIN, MAIN_TIMER_INTERVAL)],
+        tracking: tracking::Tracking::new(data::deg_per_s(5.0), data::deg_per_s(5.0), mount, target),
+        tui: None,
+    };
+
+    tui::init(&mut state);
+
+    pasts::Executor::default().block_on(event_handling::event_loop(state));
+}
+
+fn set_up_logging() {
     std::panic::set_hook(Box::new(|info| {
         let backtrace = std::backtrace::Backtrace::force_capture();
         log::error!("{}\n\n{}", info, backtrace);
@@ -49,29 +83,4 @@ fn main() {
             .build(),
         std::fs::File::create(logfile).unwrap()
     ).unwrap();
-
-	let curs = cursive::default();
-
-    log::info!("connecting to data source...");
-    let mut data_receiver = async_std::io::BufReader::new(
-        futures::executor::block_on(async { async_std::net::TcpStream::connect(format!("127.0.0.1:{}", DATA_SOURCE_PORT)).await }).unwrap()
-    ).lines();
-    log::info!("...connected");
-
-    let mut listener = stick::Listener::default();
-
-    let mut state = data::ProgramState{
-        controllers: vec![],
-        cursive_stepper: cursive_stepper::CursiveRunnableStepper{ curs: curs.into_runner() },
-        data_receiver: Box::pin(pasts::notify::poll_fn(move |ctx| Pin::new(&mut data_receiver).poll_next(ctx))),
-        listener: Box::pin(pasts::notify::poll_fn(move |ctx| std::pin::Pin::new(&mut listener).poll(ctx))),
-        mount: Box::new(mount::Simulator::new(&format!("127.0.0.1:{}", MOUNT_SERVER_PORT)).unwrap()),
-        slewing: Default::default(),
-        timers: vec![data::Timer::new(data::timers::MAIN, MAIN_TIMER_INTERVAL)],
-        tui: None,
-    };
-
-    tui::init(&mut state);
-
-    pasts::Executor::default().block_on(event_handling::event_loop(state));
 }
