@@ -20,7 +20,7 @@ use async_std::stream::Stream;
 use crate::{cursive_stepper::CursiveRunnableStepper, mount::Mount, tracking::Tracking, tui::TuiData};
 use pointing_utils::uom;
 use std::{cell::RefCell, future::Future, marker::Unpin, pin::Pin, rc::Rc, task::{Context, Poll}};
-use uom::{si::f64, si::{angle, angular_velocity}};
+use uom::{si::f64, si::{angle, angular_velocity, time}};
 use pasts::notify::Notify;
 
 pub mod timers {
@@ -48,11 +48,55 @@ pub fn deg_per_s(value: f64) -> f64::AngularVelocity {
     f64::AngularVelocity::new::<angular_velocity::degree_per_second>(value)
 }
 
+pub fn as_deg(angle: f64::Angle) -> f64 {
+    angle.get::<angle::degree>()
+}
+
+pub fn as_deg_per_s(speed: f64::AngularVelocity) -> f64 {
+    speed.get::<angular_velocity::degree_per_second>()
+}
+
+pub fn time(duration: std::time::Duration) -> f64::Time { f64::Time::new::<time::second>(duration.as_secs_f64()) }
+
 pub struct Target {
     pub azimuth: f64::Angle,
     pub altitude: f64::Angle,
     pub az_spd: f64::AngularVelocity,
     pub alt_spd: f64::AngularVelocity
+}
+
+struct MountLastPos {
+    t: std::time::Instant,
+    axis1_pos: f64::Angle,
+    axis2_pos: f64::Angle
+}
+
+pub struct MountSpeed {
+    last_pos: Option<MountLastPos>,
+    axes_spd: Option<(f64::AngularVelocity, f64::AngularVelocity)>,
+}
+
+// TODO: make it updatable only from main timer handler
+impl MountSpeed {
+    pub fn new() -> MountSpeed {
+        MountSpeed{ last_pos: None, axes_spd: None }
+    }
+
+    pub fn notify_pos(&mut self, axis1_pos: f64::Angle, axis2_pos: f64::Angle) {
+        if let Some(last_pos) = &self.last_pos {
+            let dt = time(last_pos.t.elapsed());
+            if dt.get::<time::second>() > 0.0 {
+                self.axes_spd = Some((
+                    Into::<f64::AngularVelocity>::into((axis1_pos - last_pos.axis1_pos) / dt),
+                    Into::<f64::AngularVelocity>::into((axis2_pos - last_pos.axis2_pos) / dt)
+                ));
+            }
+        }
+
+        self.last_pos = Some(MountLastPos{ t: std::time::Instant::now(), axis1_pos, axis2_pos });
+    }
+
+    pub fn get(&self) -> Option<(f64::AngularVelocity, f64::AngularVelocity)> { self.axes_spd }
 }
 
 pub struct ProgramState {
@@ -61,6 +105,7 @@ pub struct ProgramState {
     pub data_receiver: Pin<Box<dyn pasts::notify::Notify<Event = Option<Result<String, std::io::Error>>>>>,
     pub listener: Pin<Box<dyn pasts::notify::Notify<Event = stick::Controller>>>,
     pub mount: Rc<RefCell<dyn Mount>>,
+    pub mount_spd: Rc<RefCell<MountSpeed>>,
     pub slewing: Slewing,
     pub timers: Vec<Timer>,
     pub tracking: Tracking,

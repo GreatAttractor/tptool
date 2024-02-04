@@ -16,7 +16,7 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use crate::mount::Mount;
+use crate::{data::deg_per_s, mount::{Axis, Mount}};
 use std::error::Error;
 use pointing_utils::{MountSimulatorMessage, read_line, uom};
 use std::{io::Write, net::TcpStream};
@@ -24,13 +24,17 @@ use uom::si::f64;
 
 pub struct Simulator {
     address: String,
-    stream: TcpStream
+    stream: TcpStream,
+    /// Last requested speed of primary axis.
+    axis1_req_spd: f64::AngularVelocity,
+    /// Last requested speed of secondary axis.
+    axis2_req_spd: f64::AngularVelocity,
 }
 
 impl Simulator {
     pub fn new(address: &str) -> Result<Simulator, Box<dyn Error>> {
         let stream = TcpStream::connect(address)?;
-        Ok(Simulator{ address: address.into(), stream })
+        Ok(Simulator{ address: address.into(), stream, axis1_req_spd: deg_per_s(0.0), axis2_req_spd: deg_per_s(0.0) })
     }
 }
 
@@ -42,6 +46,9 @@ impl Mount for Simulator {
     }
 
     fn slew(&mut self, axis1: f64::AngularVelocity, axis2: f64::AngularVelocity) -> Result<(), Box<dyn Error>> {
+        self.axis1_req_spd = axis1;
+        self.axis2_req_spd = axis2;
+
         self.stream.write_all(Msg::Slew{axis1, axis2}.to_string().as_bytes())?;
         let resp_str = read_line(&mut self.stream)?;
         let msg = resp_str.parse::<Msg>()?;
@@ -50,6 +57,13 @@ impl Mount for Simulator {
         } else {
             Err(format!("invalid message: {}", resp_str).into())
         }
+    }
+
+    fn slew_axis(&mut self, axis: Axis, speed: f64::AngularVelocity) -> Result<(), Box<dyn Error>> {
+        let axis1_speed = if let Axis::Primary = axis { speed } else { self.axis1_req_spd };
+        let axis2_speed = if let Axis::Secondary = axis { speed } else { self.axis2_req_spd };
+
+        self.slew(axis1_speed, axis2_speed)
     }
 
     fn stop(&mut self) -> Result<(), Box<dyn Error>> {

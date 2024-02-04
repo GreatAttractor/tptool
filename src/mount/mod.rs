@@ -6,11 +6,29 @@ use uom::si::f64;
 
 pub use simulator::Simulator;
 
+#[derive(Copy, Clone, PartialEq)]
+pub enum Axis {
+    Primary,
+    Secondary
+}
+
+impl std::fmt::Display for Axis {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", match self {
+            Axis::Primary => "primary",
+            Axis::Secondary => "secondary",
+        })
+    }
+}
+
 pub trait Mount {
     fn get_info(&self) -> String;
 
     #[must_use]
     fn slew(&mut self, axis1: f64::AngularVelocity, axis2: f64::AngularVelocity) -> Result<(), Box<dyn Error>>;
+
+    #[must_use]
+    fn slew_axis(&mut self, axis: Axis, speed: f64::AngularVelocity) -> Result<(), Box<dyn Error>>;
 
     #[must_use]
     fn stop(&mut self) -> Result<(), Box<dyn Error>>;
