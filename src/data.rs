@@ -30,13 +30,14 @@ pub mod timers {
 }
 
 pub struct Slewing {
-    pub axis1: f64::AngularVelocity,
-    pub axis2: f64::AngularVelocity,
+    // values from [-1.0, 1.0]
+    pub axis1_rel: f64,
+    pub axis2_rel: f64,
 }
 
 impl Default for Slewing {
     fn default() -> Slewing {
-        Slewing{ axis1: deg_per_s(0.0), axis2: deg_per_s(0.0) }
+        Slewing{ axis1_rel: 0.0, axis2_rel: 0.0 }
     }
 }
 

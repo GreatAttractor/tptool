@@ -101,30 +101,47 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
         }
         state.controllers.remove(index);
     } else {
-        let slew_speed = data::deg_per_s(3.0);
         let mut slew_change = false;
 
         match event {
-            stick::Event::PovLeft(down) => {
-                state.slewing.axis1 = if down { -slew_speed } else { data::deg_per_s(0.0) };
+            stick::Event::JoyX(value) => {
+                state.slewing.axis1_rel = value;
                 slew_change = true;
             },
-            stick::Event::PovRight(down) => {
-                state.slewing.axis1 = if down { slew_speed } else { data::deg_per_s(0.0) };
+            stick::Event::JoyY(value) => {
+                state.slewing.axis2_rel = -value; // TODO: make axis reversals configurable
                 slew_change = true;
             },
-            stick::Event::PovUp(down) => {
-                state.slewing.axis2 = if down { slew_speed } else { data::deg_per_s(0.0) };
+            stick::Event::PovLeft(pressed) => {
+                state.slewing.axis1_rel = if pressed { -1.0 } else { 0.0 };
                 slew_change = true;
             },
-            stick::Event::PovDown(down) => {
-                state.slewing.axis2 = if down { -slew_speed } else { data::deg_per_s(0.0) };
+            stick::Event::PovRight(pressed) => {
+                state.slewing.axis1_rel = if pressed { 1.0 } else { 0.0 };
                 slew_change = true;
+            },
+            stick::Event::PovDown(pressed) => {
+                state.slewing.axis2_rel = if pressed { -1.0 } else { 0.0 };
+                slew_change = true;
+            },
+            stick::Event::PovUp(pressed) => {
+                state.slewing.axis2_rel = if pressed { 1.0 } else { 0.0 };
+                slew_change = true;
+            },
+            stick::Event::BumperL(pressed) => {
+                if pressed { state.tracking.cancel_adjustment(); }
             },
             _ => ()
         }
 
-        if slew_change { state.mount.borrow_mut().slew(state.slewing.axis1, state.slewing.axis2).unwrap(); }
+        if slew_change {
+            if state.tracking.is_active() {
+                state.tracking.adjust_slew(state.slewing.axis1_rel, state.slewing.axis2_rel);
+            } else {
+                let spd = data::deg_per_s(3.0);
+                state.mount.borrow_mut().slew(spd * state.slewing.axis1_rel, spd * state.slewing.axis2_rel).unwrap();
+            }
+        }
 
         state.tui().text_content.controller_event.set_content(format!("{}", event)); //TESTING #########
         state.refresh_tui();

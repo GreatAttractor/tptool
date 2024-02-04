@@ -6,6 +6,7 @@ use uom::si::f64;
 
 // TODO: convert to const `angular_velocity::degree_per_second` once supported
 const MATCH_POS_SPD_DEG_PER_S: f64 = 0.25;
+const ADJUSTMENT_SPD_DEG_PER_S: f64 = 0.5;
 
 const TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
 
@@ -55,12 +56,17 @@ impl State {
     }
 }
 
+struct Adjustment {
+}
+
 pub struct Tracking {
     max_spd: AngSpeed,
     mount: Rc<RefCell<dyn Mount>>,
     mount_spd: Rc<RefCell<MountSpeed>>, // TODO: make it unwriteable from here
     state: Rc<RefCell<State>>,
     target: Rc<RefCell<Option<data::Target>>>, // TODO: make it unwriteable from here
+    adjusting: bool,
+    adjustment: Option<Adjustment>
 }
 
 impl Tracking {
@@ -76,10 +82,14 @@ impl Tracking {
             mount_spd,
             state: Rc::new(RefCell::new(State::new())),
             target,
+            adjusting: false,
+            adjustment: None
         }
     }
 
     fn on_timer(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.adjusting { return Ok(()); }
+
         if self.mount_spd.borrow().get().is_none() {
             log::debug!("waiting for mount speed estimation");
             return Ok(());
@@ -122,6 +132,37 @@ impl Tracking {
 
     pub fn controller(&self) -> TrackingController {
         TrackingController{ state: Rc::clone(&self.state) }
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.state.borrow().timer.is_some()
+    }
+
+    /// Parameters are between [-1.0; 1.0].
+    pub fn adjust_slew(&mut self, axis1_rel_spd: f64, axis2_rel_spd: f64) {
+        if !self.adjusting {
+            self.adjusting = true;
+            log::info!("begin manual adjustment");
+        }
+
+        let t = self.target.borrow();
+        if let Some(target) = t.as_ref() {
+            let new_axis1_spd = target.az_spd + axis1_rel_spd * deg_per_s(ADJUSTMENT_SPD_DEG_PER_S);
+            let new_axis2_spd = target.alt_spd + axis2_rel_spd * deg_per_s(ADJUSTMENT_SPD_DEG_PER_S);
+
+            if let Err(e) = self.mount.borrow_mut().slew(new_axis1_spd, new_axis2_spd) {
+                log::error!("error when slewing: {}", e);
+            }
+        } else {
+            log::error!("no target");
+            self.adjustment = None;
+            self.state.borrow_mut().timer = None;
+        }
+    }
+
+    pub fn cancel_adjustment(&mut self) {
+        self.adjusting = false;
+        log::info!("cancel manual adjustment");
     }
 }
 
