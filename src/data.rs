@@ -17,8 +17,9 @@
 //
 
 use async_std::stream::Stream;
+use cgmath::{Basis3, Deg, EuclideanSpace, InnerSpace, Point3, Rad, Rotation, Rotation3, Vector3};
 use crate::{cursive_stepper::CursiveRunnableStepper, mount::Mount, tracking::Tracking, tui::TuiData};
-use pointing_utils::uom;
+use pointing_utils::{cgmath, uom};
 use std::{cell::RefCell, future::Future, marker::Unpin, pin::Pin, rc::Rc, task::{Context, Poll}};
 use uom::{si::f64, si::{angle, angular_velocity, time}};
 use pasts::notify::Notify;
@@ -63,7 +64,8 @@ pub struct Target {
     pub azimuth: f64::Angle,
     pub altitude: f64::Angle,
     pub az_spd: f64::AngularVelocity,
-    pub alt_spd: f64::AngularVelocity
+    pub alt_spd: f64::AngularVelocity,
+    pub v_tangential: Vector3<f64> // m/s
 }
 
 struct MountLastPos {
@@ -149,4 +151,23 @@ impl pasts::notify::Notify for Timer {
             Poll::Ready(_) => { Poll::Ready(self.id) }
         }
     }
+}
+
+pub fn to_spherical(pos: Point3<f64>) -> (f64::Angle, f64::Angle) {
+    let atan2 = Deg::from(Rad(pos.y.atan2(pos.x)));
+    let azimuth = if atan2 < Deg(0.0) && atan2 > Deg(-180.0) { -atan2 } else { Deg(360.0) - atan2 };
+    let altitude = Deg::from(Rad((pos.z / pos.to_vec().magnitude()).asin()));
+
+    (deg(azimuth.0), deg(altitude.0))
+}
+
+pub fn spherical_to_unit(azimuth: f64::Angle, altitude: f64::Angle) -> Point3<f64> {
+    const NORTH: Vector3<f64> = Vector3{ x: 1.0, y: 0.0, z: 0.0 };
+    const UP: Vector3<f64> = Vector3{ x: 0.0, y: 0.0, z: 1.0 };
+    const WEST: Vector3<f64> = Vector3{ x: 0.0, y: 1.0, z: 0.0 };
+
+    let dir = Basis3::from_axis_angle(WEST, -Rad(altitude.get::<angle::radian>())).rotate_vector(NORTH);
+    let dir = Basis3::from_axis_angle(UP, -Rad(azimuth.get::<angle::radian>())).rotate_vector(dir);
+
+    Point3::from_vec(dir)
 }

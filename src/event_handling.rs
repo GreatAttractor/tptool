@@ -16,8 +16,8 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use cgmath::{Deg, EuclideanSpace, InnerSpace, Rad, Vector3};
-use crate::{cursive_stepper::Running, data, data::{as_deg, deg, ProgramState, TimerId, timers}};
+use cgmath::{Deg, EuclideanSpace, InnerSpace, Point3, Rad, Vector3};
+use crate::{cursive_stepper::Running, data, data::{as_deg, as_deg_per_s, ProgramState, TimerId, timers}};
 use pointing_utils::{cgmath, TargetInfoMessage, uom};
 use std::{future::Future, task::Poll};
 use uom::{si::f64, si::{angle, angular_velocity, length, velocity}};
@@ -131,6 +131,9 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
             stick::Event::BumperL(pressed) => {
                 if pressed { state.tracking.cancel_adjustment(); }
             },
+            stick::Event::BumperR(pressed) => {
+                if pressed { state.tracking.save_adjustment(); }
+            },
             _ => ()
         }
 
@@ -160,9 +163,7 @@ fn on_data_received(state: &mut ProgramState, message: Option<Result<String, std
     let r_len = r_len2.sqrt();
     let dist = f64::Length::new::<length::meter>(r_len);
     let speed = f64::Velocity::new::<velocity::meter_per_second>(ti.velocity.0.magnitude());
-    let atan2 = Deg::from(Rad(ti.position.0.y.atan2(ti.position.0.x)));
-    let azimuth = if atan2 < Deg(0.0) && atan2 > Deg(-180.0) { -atan2 } else { Deg(360.0) - atan2 };
-    let altitude = Deg::from(Rad((ti.position.0.z / r_len).asin()));
+    let (azimuth, altitude) = data::to_spherical(ti.position.0);
     let v_radial = r * ti.velocity.0.dot(r) / r_len2;
     let v_tangential = ti.velocity.0 - v_radial;
     let ang_speed = radians(v_tangential.magnitude() / r_len);
@@ -176,10 +177,11 @@ fn on_data_received(state: &mut ProgramState, message: Option<Result<String, std
     let ang_speed_el = v_up_down.z.signum() * radians(v_up_down.magnitude() / r_len);
 
     *state.target.borrow_mut() = Some(data::Target{
-        azimuth: deg(azimuth.0),
-        altitude: deg(altitude.0),
+        azimuth,
+        altitude,
         az_spd: ang_speed_az,
-        alt_spd: ang_speed_el
+        alt_spd: ang_speed_el,
+        v_tangential
     });
 
     let texts = &state.tui().text_content;
@@ -190,10 +192,10 @@ fn on_data_received(state: &mut ProgramState, message: Option<Result<String, std
         ang_speed.get::<angular_velocity::degree_per_second>()
     ));
     texts.target_az.set_content(
-        format!("{:.1}°  {:.02}°/s", azimuth.0, ang_speed_az.get::<angular_velocity::degree_per_second>())
+        format!("{:.1}°  {:.02}°/s", as_deg(azimuth), as_deg_per_s(ang_speed_az))
     );
     texts.target_alt.set_content(
-        format!("{:.1}°  {:.02}°/s", altitude.0, ang_speed_el.get::<angular_velocity::degree_per_second>())
+        format!("{:.1}°  {:.02}°/s", as_deg(altitude), as_deg_per_s(ang_speed_el))
     );
 
     state.refresh_tui();

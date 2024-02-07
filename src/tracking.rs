@@ -1,8 +1,9 @@
+use cgmath::{Basis3, Deg, EuclideanSpace, InnerSpace, Point3, Rad, Rotation, Rotation3, Vector3};
 use crate::{data, data::{as_deg, as_deg_per_s, deg, deg_per_s, time, MountSpeed}, mount::{Axis, Mount}};
 use pasts::notify::Notify;
-use pointing_utils::uom;
+use pointing_utils::{cgmath, uom};
 use std::{cell::RefCell, error::Error, pin::Pin, rc::Rc, task::{Context, Poll, Waker}};
-use uom::si::f64;
+use uom::si::{angle, f64};
 
 // TODO: convert to const `angular_velocity::degree_per_second` once supported
 const MATCH_POS_SPD_DEG_PER_S: f64 = 0.25;
@@ -57,6 +58,10 @@ impl State {
 }
 
 struct Adjustment {
+    /// Angle of rotation of tangent velocity around target position vector.
+    rel_dir: f64::Angle,
+    /// Angular displacement on the sky along the direction given by `rel_dir`.
+    angle: f64::Angle
 }
 
 pub struct Tracking {
@@ -103,8 +108,15 @@ impl Tracking {
         {
             let t = self.target.borrow();
             let target = t.as_ref().ok_or::<Box<dyn Error>>("no target".into())?;
-            az_delta = angle_diff(mount_az, target.azimuth);
-            alt_delta = angle_diff(mount_alt, target.altitude);
+
+            let (target_az, target_alt) = if let Some(adj) = self.adjustment.as_ref() {
+                get_adjusted_pos(target.azimuth, target.altitude, target.v_tangential, adj)
+            } else {
+                (target.azimuth, target.altitude)
+            };
+
+            az_delta = angle_diff(mount_az, target_az);
+            alt_delta = angle_diff(mount_alt, target_alt);
             target_az_spd = target.az_spd;
             target_alt_spd = target.alt_spd;
         }
@@ -160,10 +172,72 @@ impl Tracking {
         }
     }
 
+    pub fn save_adjustment(&mut self) {
+        if !self.adjusting { return; }
+
+        let target = self.target.borrow();
+        if target.is_none() {
+            log::error!("no target");
+            return;
+        }
+        let target = target.as_ref().unwrap();
+        let target_pos = data::spherical_to_unit(target.azimuth, target.altitude);
+        let (mount_az, mount_alt) = self.mount.borrow_mut().position().unwrap();
+        let adjusted_pos = data::spherical_to_unit(mount_az, mount_alt);
+
+        // To be precise, before calculating the offset and its angle to `v_tangential` we should project
+        // the `adjusted_pos` vector onto the plane tangent at `target_pos`; but since the angles involved are small,
+        // there will not be much difference.
+        let offset = adjusted_pos - target_pos;
+
+        let is_obtuse = target.v_tangential.dot(offset) < 0.0;
+
+        let rotation = Rad(
+            (target.v_tangential.cross(offset).magnitude() / (offset.magnitude() * target.v_tangential.magnitude())
+        ).asin()); // rotation angle of `offset` relative to `v_tangential`
+
+        let rotation = if is_obtuse { Rad::from(Deg(180.0)) - rotation } else { rotation };
+
+        // approximate, since we use chord instead of arc length
+        let angular_offset = f64::Angle::new::<angle::radian>(offset.magnitude());
+
+        let adjustment = Adjustment{
+            rel_dir: deg(Deg::from(rotation).0),
+            angle: angular_offset
+        };
+        log::info!(
+            "using new adjustment: rel_dir = {:.01}°, angle = {:.02}°",
+            as_deg(adjustment.rel_dir),
+            as_deg(adjustment.angle)
+        );
+
+        self.adjustment = Some(adjustment);
+
+        self.adjusting = false;
+    }
+
     pub fn cancel_adjustment(&mut self) {
         self.adjusting = false;
+        self.adjustment = None;
         log::info!("cancel manual adjustment");
     }
+}
+
+fn get_adjusted_pos(
+    azimuth: f64::Angle,
+    altitude: f64::Angle,
+    v_tangential: Vector3<f64>,
+    adj: &Adjustment
+) -> (f64::Angle, f64::Angle) {
+    let r = data::spherical_to_unit(azimuth, altitude).to_vec();
+    let vt_unit = v_tangential.normalize();
+    let adjustment_dir = Basis3::from_axis_angle(r, Deg(as_deg(adj.rel_dir))).rotate_vector(vt_unit);
+    let adjusted_pos = Point3::from_vec(r) + adjustment_dir * adj.angle.get::<angle::radian>();
+
+    let result = data::to_spherical(adjusted_pos);
+    log::debug!("adjusted position: az. {:.1}°, alt. {:.1}°", as_deg(result.0), as_deg(result.1));
+
+    result
 }
 
 impl Notify for Tracking {
