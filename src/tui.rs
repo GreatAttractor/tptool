@@ -104,6 +104,8 @@ pub fn init(state: &mut ProgramState) {
         text_content,
         showing_dialog: false
     });
+
+    curs.refresh();
 }
 
 fn init_command_bar(curs: &mut cursive::Cursive) {
