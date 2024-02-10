@@ -22,14 +22,38 @@ use cursive::{
     reexports::enumset,
     Rect,
     theme,
+    theme::Theme,
     Vec2,
     View,
     view::{Offset, Position, Resizable},
-    views::{DummyView, FixedLayout, LinearLayout, OnLayoutView, Panel, TextContent, TextView}
+    views::{
+        CircularFocus,
+        Dialog,
+        DummyView,
+        FixedLayout,
+        LinearLayout,
+        OnLayoutView,
+        Panel,
+        ShadowView,
+        TextContent,
+        TextView,
+        ThemedView
+    },
+    With
 };
+use std::{cell::RefCell, rc::Rc};
+
+macro_rules! tui {
+    ($tui_rc:ident) => { $tui_rc.borrow().as_ref().unwrap() };
+}
+
+macro_rules! tui_mut {
+    ($tui_rc:ident) => { $tui_rc.borrow_mut().as_mut().unwrap() };
+}
 
 pub struct TuiData {
-    pub text_content: Texts
+    pub text_content: Texts,
+    pub showing_dialog: bool
 }
 
 pub struct Texts {
@@ -48,6 +72,7 @@ pub struct Texts {
 
 pub fn init(state: &mut ProgramState) {
     let curs = &mut state.cursive_stepper.curs;
+
 	curs.add_global_callback('q', |c| { c.quit(); });
 
     let tracking = state.tracking.controller();
@@ -59,15 +84,40 @@ pub fn init(state: &mut ProgramState) {
         }
     });
 
-    init_theme(curs);
+    let tui = Rc::clone(&state.tui);
+    curs.add_global_callback('d', move |curs| {
+        if tui!(tui).showing_dialog { return; }
+        tui_mut!(tui).showing_dialog = true;
+        let tui2 = Rc::clone(&tui);
+        let mut dialog_theme = create_main_theme(curs.current_theme());
+        dialog_theme.borders = theme::BorderStyle::Simple;
+
+        curs.screen_mut().add_layer_at(
+            Position::new(Offset::Center, Offset::Center),
+            ThemedView::new(
+                dialog_theme.clone(),
+                Dialog::around(TextView::new("Some text."))
+                .button("OK", move |curs| {
+                    curs.pop_layer();
+                    tui_mut!(tui2).showing_dialog = false;
+                })
+                .title("Indicate current position")
+                .wrap_with(CircularFocus::new)
+                .wrap_tab()
+            )
+        );
+    });
+
+    let main_theme = create_main_theme(curs.current_theme());
+    curs.set_theme(main_theme);
 
     let text_content = init_views(curs);
     init_command_bar(curs);
 
-    let tui_data = TuiData{
-        text_content
-    };
-    state.tui = Some(tui_data);
+    *state.tui.borrow_mut() = Some(TuiData{
+        text_content,
+        showing_dialog: false
+    });
 }
 
 fn init_command_bar(curs: &mut cursive::Cursive) {
@@ -178,13 +228,14 @@ fn label_and_content(label: &str, content: TextContent) -> LinearLayout {
         )
 }
 
-fn init_theme(curs: &mut cursive::Cursive) {
-    let mut theme = curs.current_theme().clone();
+fn create_main_theme(base: &Theme) -> Theme {
+    let mut theme = base.clone();
+
     theme.shadow = false;
     theme.borders = theme::BorderStyle::None;
     theme.palette[theme::PaletteColor::View] = theme::Color::Rgb(60, 60, 60);
     theme.palette[theme::PaletteColor::Background] = theme::Color::Rgb(30, 30, 30);
     theme.palette[theme::PaletteColor::TitlePrimary] = theme::Color::Rgb(255, 255, 255);
     theme.palette[theme::PaletteColor::Primary] = theme::Color::Rgb(180, 180, 180);
-    curs.set_theme(theme);
+    theme
 }

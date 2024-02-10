@@ -26,6 +26,10 @@ use uom::{si::f64, si::{angle, angular_velocity, length, velocity}};
 // TODO: make configurable
 const CONTROLLER_ID: u64 = 0x03006D041DC21440;
 
+macro_rules! tui {
+    ($state:ident) => { $state.tui().as_ref().unwrap() };
+}
+
 pub async fn event_loop(mut state: ProgramState) {
 
     pasts::Loop::new(&mut state)
@@ -43,9 +47,9 @@ fn on_main_timer(state: &mut ProgramState) {
     state.mount_spd.borrow_mut().notify_pos(axis1, axis2);
     let a1deg = as_deg(axis1);
     let azimuth = if a1deg >= 0.0 && a1deg <= 180.0 { a1deg } else { 360.0 + a1deg };
-    let tui = state.tui();
-    tui.text_content.mount_az.set_content(format!("{:.2}°", azimuth));
-    tui.text_content.mount_alt.set_content(format!("{:.2}°", as_deg(axis2)));
+    //let tui = state.tui().as_ref().unwrap();
+    tui!(state).text_content.mount_az.set_content(format!("{:.2}°", azimuth));
+    tui!(state).text_content.mount_alt.set_content(format!("{:.2}°", as_deg(axis2)));
     state.refresh_tui();
 }
 
@@ -75,7 +79,7 @@ fn on_controller_connected(state: &mut ProgramState, mut controller: stick::Cont
     if controller.id() == CONTROLLER_ID {
         let ctrl_str = format!("[{:016X}] {}", controller.id(), controller.name());
         log::info!("new controller: {}", ctrl_str);
-        state.tui().text_content.controller_name.set_content(ctrl_str);
+        state.tui().as_ref().unwrap().text_content.controller_name.set_content(ctrl_str);
         state.refresh_tui();
     }
     state.controllers.push(
@@ -96,7 +100,7 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
 
     if let stick::Event::Disconnect = event {
         if id == CONTROLLER_ID {
-            state.tui().text_content.controller_name.set_content("(disconnected)");
+            state.tui().as_ref().unwrap().text_content.controller_name.set_content("(disconnected)");
             state.refresh_tui();
         }
         state.controllers.remove(index);
@@ -146,7 +150,7 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
             }
         }
 
-        state.tui().text_content.controller_event.set_content(format!("{}", event)); //TESTING #########
+        state.tui().as_ref().unwrap().text_content.controller_event.set_content(format!("{}", event)); //TESTING #########
         state.refresh_tui();
     }
 
@@ -184,19 +188,24 @@ fn on_data_received(state: &mut ProgramState, message: Option<Result<String, std
         v_tangential
     });
 
-    let texts = &state.tui().text_content;
-    texts.target_dist.set_content(format!("{:.1} km", dist.get::<length::kilometer>(),));
-    texts.target_spd.set_content(format!(
-        "{:.0} km/h  {:.02}°/s",
-        speed.get::<velocity::kilometer_per_hour>(),
-        ang_speed.get::<angular_velocity::degree_per_second>()
-    ));
-    texts.target_az.set_content(
-        format!("{:.1}°  {:.02}°/s", as_deg(azimuth), as_deg_per_s(ang_speed_az))
-    );
-    texts.target_alt.set_content(
-        format!("{:.1}°  {:.02}°/s", as_deg(altitude), as_deg_per_s(ang_speed_el))
-    );
+    {
+        let tui = &state.tui();
+        let tui = tui.as_ref().unwrap();
+        let texts = &tui.text_content;
+
+        texts.target_dist.set_content(format!("{:.1} km", dist.get::<length::kilometer>(),));
+        texts.target_spd.set_content(format!(
+            "{:.0} km/h  {:.02}°/s",
+            speed.get::<velocity::kilometer_per_hour>(),
+            ang_speed.get::<angular_velocity::degree_per_second>()
+        ));
+        texts.target_az.set_content(
+            format!("{:.1}°  {:.02}°/s", as_deg(azimuth), as_deg_per_s(ang_speed_az))
+        );
+        texts.target_alt.set_content(
+            format!("{:.1}°  {:.02}°/s", as_deg(altitude), as_deg_per_s(ang_speed_el))
+        );
+    }
 
     state.refresh_tui();
 

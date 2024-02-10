@@ -20,7 +20,7 @@ use async_std::stream::Stream;
 use cgmath::{Basis3, Deg, EuclideanSpace, InnerSpace, Point3, Rad, Rotation, Rotation3, Vector3};
 use crate::{cursive_stepper::CursiveRunnableStepper, mount::Mount, tracking::Tracking, tui::TuiData};
 use pointing_utils::{cgmath, uom};
-use std::{cell::RefCell, future::Future, marker::Unpin, pin::Pin, rc::Rc, task::{Context, Poll}};
+use std::{cell::{Ref, RefCell}, future::Future, marker::Unpin, pin::Pin, rc::Rc, task::{Context, Poll}};
 use uom::{si::f64, si::{angle, angular_velocity, time}};
 use pasts::notify::Notify;
 
@@ -112,12 +112,12 @@ pub struct ProgramState {
     pub slewing: Slewing,
     pub timers: Vec<Timer>,
     pub tracking: Tracking,
-    pub tui: Option<TuiData>, // always `Some` after program start
+    pub tui: Rc<RefCell<Option<TuiData>>>, // always `Some` after program start
     pub target: Rc<RefCell<Option<Target>>>
 }
 
 impl ProgramState {
-    pub fn tui(&self) -> &TuiData { self.tui.as_ref().unwrap() }
+    pub fn tui(&self) -> Ref<Option<TuiData>> { self.tui.borrow() }
 
     pub fn refresh_tui(&mut self) {
         self.cursive_stepper.curs.refresh();

@@ -57,7 +57,7 @@ fn main() {
         target: Rc::clone(&target),
         timers: vec![data::Timer::new(data::timers::MAIN, MAIN_TIMER_INTERVAL)],
         tracking: tracking::Tracking::new(data::deg_per_s(5.0), mount, mount_spd, target),
-        tui: None,
+        tui: Rc::new(RefCell::new(None)),
     };
 
     tui::init(&mut state);
