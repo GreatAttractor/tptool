@@ -32,9 +32,9 @@ pub struct Simulator {
 }
 
 impl Simulator {
-    pub fn new(address: &str) -> Result<Simulator, Box<dyn Error>> {
+    pub fn new(address: &str) -> Result<Box<dyn Mount>, Box<dyn Error>> {
         let stream = TcpStream::connect(address)?;
-        Ok(Simulator{ address: address.into(), stream, axis1_req_spd: deg_per_s(0.0), axis2_req_spd: deg_per_s(0.0) })
+        Ok(Box::new(Simulator{ address: address.into(), stream, axis1_req_spd: deg_per_s(0.0), axis2_req_spd: deg_per_s(0.0) }))
     }
 }
 

@@ -66,7 +66,7 @@ struct Adjustment {
 
 pub struct Tracking {
     max_spd: AngSpeed,
-    mount: Rc<RefCell<dyn Mount>>,
+    mount: Rc<RefCell<Option<Box<dyn Mount>>>>,
     mount_spd: Rc<RefCell<MountSpeed>>, // TODO: make it unwriteable from here
     state: Rc<RefCell<State>>,
     target: Rc<RefCell<Option<data::Target>>>, // TODO: make it unwriteable from here
@@ -77,7 +77,7 @@ pub struct Tracking {
 impl Tracking {
     pub fn new(
         max_spd: AngSpeed,
-        mount: Rc<RefCell<dyn Mount>>,
+        mount: Rc<RefCell<Option<Box<dyn Mount>>>>,
         mount_spd: Rc<RefCell<MountSpeed>>,
         target: Rc<RefCell<Option<data::Target>>>,
     ) -> Tracking {
@@ -100,7 +100,7 @@ impl Tracking {
             return Ok(());
         }
 
-        let (mount_az, mount_alt) = self.mount.borrow_mut().position()?;
+        let (mount_az, mount_alt) = self.mount.borrow_mut().as_mut().unwrap().position()?;
         let az_delta;
         let alt_delta;
         let target_az_spd;
@@ -137,7 +137,7 @@ impl Tracking {
     ) -> Result<(), Box<dyn Error>> {
         let mut spd = target_spd + deg_per_s(as_deg(pos_delta) * MATCH_POS_SPD_DEG_PER_S);
         if spd < -self.max_spd { spd = -self.max_spd; } else if spd > self.max_spd { spd = self.max_spd; }
-        self.mount.borrow_mut().slew_axis(axis, spd)?;
+        self.mount.borrow_mut().as_mut().unwrap().slew_axis(axis, spd)?;
 
         Ok(())
     }
@@ -162,7 +162,7 @@ impl Tracking {
             let new_axis1_spd = target.az_spd + axis1_rel_spd * deg_per_s(ADJUSTMENT_SPD_DEG_PER_S);
             let new_axis2_spd = target.alt_spd + axis2_rel_spd * deg_per_s(ADJUSTMENT_SPD_DEG_PER_S);
 
-            if let Err(e) = self.mount.borrow_mut().slew(new_axis1_spd, new_axis2_spd) {
+            if let Err(e) = self.mount.borrow_mut().as_mut().unwrap().slew(new_axis1_spd, new_axis2_spd) {
                 log::error!("error when slewing: {}", e);
             }
         } else {
@@ -182,7 +182,7 @@ impl Tracking {
         }
         let target = target.as_ref().unwrap();
         let target_pos = data::spherical_to_unit(target.azimuth, target.altitude);
-        let (mount_az, mount_alt) = self.mount.borrow_mut().position().unwrap();
+        let (mount_az, mount_alt) = self.mount.borrow_mut().as_mut().unwrap().position().unwrap();
         let adjusted_pos = data::spherical_to_unit(mount_az, mount_alt);
 
         // To be precise, before calculating the offset and its angle to `v_tangential` we should project

@@ -16,7 +16,7 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use crate::data::ProgramState;
+use crate::{data::ProgramState, data_receiver};
 use cursive::{
     align::HAlign,
     reexports::enumset,
@@ -25,16 +25,16 @@ use cursive::{
     theme::Theme,
     Vec2,
     View,
-    view::{Offset, Position, Resizable},
+    view::{Nameable, Offset, Position, Resizable},
     views::{
         CircularFocus,
         Dialog,
         DummyView,
+        EditView,
         FixedLayout,
         LinearLayout,
         OnLayoutView,
         Panel,
-        ShadowView,
         TextContent,
         TextView,
         ThemedView
@@ -42,6 +42,10 @@ use cursive::{
     With
 };
 use std::{cell::RefCell, rc::Rc};
+
+mod names {
+    pub const SERVER_ADDR: &str = "server_addr";
+}
 
 macro_rules! tui {
     ($tui_rc:ident) => { $tui_rc.borrow().as_ref().unwrap() };
@@ -85,27 +89,9 @@ pub fn init(state: &mut ProgramState) {
     });
 
     let tui = Rc::clone(&state.tui);
-    curs.add_global_callback('d', move |curs| {
-        if tui!(tui).showing_dialog { return; }
-        tui_mut!(tui).showing_dialog = true;
-        let tui2 = Rc::clone(&tui);
-        let mut dialog_theme = create_main_theme(curs.current_theme());
-        dialog_theme.borders = theme::BorderStyle::Simple;
-
-        curs.screen_mut().add_layer_at(
-            Position::new(Offset::Center, Offset::Center),
-            ThemedView::new(
-                dialog_theme.clone(),
-                Dialog::around(TextView::new("Some text."))
-                .button("OK", move |curs| {
-                    curs.pop_layer();
-                    tui_mut!(tui2).showing_dialog = false;
-                })
-                .title("Indicate current position")
-                .wrap_with(CircularFocus::new)
-                .wrap_tab()
-            )
-        );
+    let connection = state.data_receiver.connection();
+    curs.add_global_callback('c', move |curs| {
+        show_data_source_dialog(curs, &tui, &connection);
     });
 
     let main_theme = create_main_theme(curs.current_theme());
@@ -125,7 +111,7 @@ fn init_command_bar(curs: &mut cursive::Cursive) {
         OnLayoutView::new(
             FixedLayout::new().child(
                 Rect::from_point(Vec2::zero()),
-                TextView::new(">F<Follow target"),
+                TextView::new(">T<Toggle target tracking  >C<Connect to data source"),
             ),
             |layout, size| {
                 let rect = Rect::from_size((0, size.y - 1), (size.x, 1));
@@ -238,4 +224,112 @@ fn create_main_theme(base: &Theme) -> Theme {
     theme.palette[theme::PaletteColor::TitlePrimary] = theme::Color::Rgb(255, 255, 255);
     theme.palette[theme::PaletteColor::Primary] = theme::Color::Rgb(180, 180, 180);
     theme
+}
+
+fn make_closure<T>(
+    arg1: &Rc<RefCell<T>>,
+    f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T>>)
+) -> impl Fn(&mut cursive::Cursive) {
+    let data = Rc::downgrade(arg1);
+    move |curs| {
+        let data = data.upgrade().unwrap();
+        f(curs, &data);
+    }
+}
+
+fn make_closure2<T1, T2: Clone>(
+    arg1: &Rc<RefCell<T1>>,
+    arg2: &T2,
+    f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T1>>, T2, &str)
+) -> impl Fn(&mut cursive::Cursive, &str) {
+    let arg1 = Rc::downgrade(arg1);
+    let arg2 = arg2.clone();
+    move |curs, s| {
+        let arg1 = arg1.upgrade().unwrap();
+        f(curs, &arg1, arg2.clone(), s);
+    }
+}
+
+fn make_closure3<T1, T2: Clone>(
+    arg1: &Rc<RefCell<T1>>,
+    arg2: &T2,
+    f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T1>>, T2)
+) -> impl Fn(&mut cursive::Cursive) {
+    let arg1 = Rc::downgrade(arg1);
+    let arg2 = arg2.clone();
+    move |curs| {
+        let arg1 = arg1.upgrade().unwrap();
+        f(curs, &arg1, arg2.clone());
+    }
+}
+
+fn show_data_source_dialog(
+    curs: &mut cursive::Cursive,
+    tui: &Rc<RefCell<Option<TuiData>>>,
+    connection: &data_receiver::Connection
+) {
+    if tui!(tui).showing_dialog { return; }
+    tui_mut!(tui).showing_dialog = true;
+    let dialog_theme = create_dialog_theme(curs);
+
+    curs.screen_mut().add_layer_at(
+        Position::new(Offset::Center, Offset::Center),
+        ThemedView::new(
+            dialog_theme.clone(),
+            Dialog::around(
+                LinearLayout::horizontal()
+                    .child(TextView::new("Server address:"))
+                    .child(EditView::new()
+                        .on_submit(make_closure2(tui, connection, |curs, tui, connection, s| {
+                            on_connect_to_data_source(curs, tui, connection, s);
+                        }))
+                        .with_name(names::SERVER_ADDR)
+                        .fixed_width(20)
+                )
+            )
+            .button("OK", make_closure3(tui, connection, |curs, tui, connection| {
+                let server_address = curs.call_on_name(
+                    names::SERVER_ADDR, |v: &mut EditView| { v.get_content() }
+                ).unwrap();
+                on_connect_to_data_source(curs, tui, connection, &server_address);
+            }))
+            .button("Cancel", make_closure(tui, |curs, tui| close_dialog(curs, tui)))
+            .title("Connect to data source")
+            .wrap_with(CircularFocus::new)
+            .wrap_tab()
+        )
+    );
+}
+
+fn on_connect_to_data_source(
+    curs: &mut cursive::Cursive,
+    tui: &Rc<RefCell<Option<TuiData>>>,
+    connection: data_receiver::Connection,
+    server_addr: &str
+) {
+    match connection.connect(server_addr) {
+        Ok(()) => {
+            log::info!("connected to data source {}", server_addr);
+            close_dialog(curs, tui);
+        },
+
+        Err(e) => {
+            log::error!("error connecting to data source \"{}\": {}", server_addr, e);
+            curs.add_layer(ThemedView::new(
+                create_dialog_theme(curs),
+                Dialog::info(format!("Failed to connect to \"{}\":\n{}.", server_addr, e)).title("Error")
+            ));
+        }
+    }
+}
+
+fn create_dialog_theme(curs: &cursive::Cursive) -> theme::Theme {
+    let mut theme = curs.current_theme().clone();
+    theme.borders = theme::BorderStyle::Simple;
+    theme
+}
+
+fn close_dialog(curs: &mut cursive::Cursive, tui: &Rc<RefCell<Option<TuiData>>>) {
+    curs.pop_layer();
+    tui_mut!(tui).showing_dialog = false;
 }

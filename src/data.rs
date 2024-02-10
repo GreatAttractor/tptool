@@ -18,7 +18,13 @@
 
 use async_std::stream::Stream;
 use cgmath::{Basis3, Deg, EuclideanSpace, InnerSpace, Point3, Rad, Rotation, Rotation3, Vector3};
-use crate::{cursive_stepper::CursiveRunnableStepper, mount::Mount, tracking::Tracking, tui::TuiData};
+use crate::{
+    cursive_stepper::CursiveRunnableStepper,
+    data_receiver::DataReceiver,
+    mount::Mount,
+    tracking::Tracking,
+    tui::TuiData
+};
 use pointing_utils::{cgmath, uom};
 use std::{cell::{Ref, RefCell}, future::Future, marker::Unpin, pin::Pin, rc::Rc, task::{Context, Poll}};
 use uom::{si::f64, si::{angle, angular_velocity, time}};
@@ -105,9 +111,9 @@ impl MountSpeed {
 pub struct ProgramState {
     pub controllers: Vec<Pin<Box<dyn pasts::notify::Notify<Event = (u64, stick::Event)>>>>,
     pub cursive_stepper: CursiveRunnableStepper,
-    pub data_receiver: Pin<Box<dyn pasts::notify::Notify<Event = Option<Result<String, std::io::Error>>>>>,
+    pub data_receiver: DataReceiver,
     pub listener: Pin<Box<dyn pasts::notify::Notify<Event = stick::Controller>>>,
-    pub mount: Rc<RefCell<dyn Mount>>,
+    pub mount: Rc<RefCell<Option<Box<dyn Mount>>>>,
     pub mount_spd: Rc<RefCell<MountSpeed>>,
     pub slewing: Slewing,
     pub timers: Vec<Timer>,

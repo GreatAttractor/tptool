@@ -43,7 +43,7 @@ pub async fn event_loop(mut state: ProgramState) {
 }
 
 fn on_main_timer(state: &mut ProgramState) {
-    let (axis1, axis2) = state.mount.borrow_mut().position().unwrap();
+    let (axis1, axis2) = state.mount.borrow_mut().as_mut().unwrap().position().unwrap();
     state.mount_spd.borrow_mut().notify_pos(axis1, axis2);
     let a1deg = as_deg(axis1);
     let azimuth = if a1deg >= 0.0 && a1deg <= 180.0 { a1deg } else { 360.0 + a1deg };
@@ -146,7 +146,7 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
                 state.tracking.adjust_slew(state.slewing.axis1_rel, state.slewing.axis2_rel);
             } else {
                 let spd = data::deg_per_s(3.0);
-                state.mount.borrow_mut().slew(spd * state.slewing.axis1_rel, spd * state.slewing.axis2_rel).unwrap();
+                state.mount.borrow_mut().as_mut().unwrap().slew(spd * state.slewing.axis1_rel, spd * state.slewing.axis2_rel).unwrap();
             }
         }
 
@@ -157,11 +157,10 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
     std::task::Poll::Pending
 }
 
-fn on_data_received(state: &mut ProgramState, message: Option<Result<String, std::io::Error>>) -> Poll<()> {
-    //TODO: when received None, stop reception
+fn on_data_received(state: &mut ProgramState, message: Result<String, std::io::Error>) -> Poll<()> {
     let radians = |value| f64::AngularVelocity::new::<angular_velocity::radian_per_second>(value);
 
-    let ti = message.unwrap().unwrap().parse::<TargetInfoMessage>().unwrap();
+    let ti = message.unwrap().parse::<TargetInfoMessage>().unwrap();
     let r = ti.position.0.to_vec();
     let r_len2 = r.magnitude2();
     let r_len = r_len2.sqrt();

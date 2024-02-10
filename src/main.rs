@@ -18,6 +18,7 @@
 
 mod cursive_stepper;
 mod data;
+mod data_receiver;
 mod event_handling;
 mod mount;
 mod tracking;
@@ -34,22 +35,16 @@ fn main() {
     set_up_logging();
 
 	let curs = cursive::default();
-
-    log::info!("connecting to data source...");
-    let mut data_receiver = async_std::io::BufReader::new(
-        futures::executor::block_on(async { async_std::net::TcpStream::connect(format!("127.0.0.1:{}", DATA_SOURCE_PORT)).await }).unwrap()
-    ).lines();
-    log::info!("...connected");
-
+    let data_receiver = data_receiver::DataReceiver::new();
     let mut listener = stick::Listener::default();
-    let mount = Rc::new(RefCell::new(mount::Simulator::new(&format!("127.0.0.1:{}", MOUNT_SERVER_PORT)).unwrap()));
+    let mount = Rc::new(RefCell::new(Some(mount::Simulator::new(&format!("127.0.0.1:{}", MOUNT_SERVER_PORT)).unwrap())));
     let mount_spd = Rc::new(RefCell::new(data::MountSpeed::new()));
     let target = Rc::new(RefCell::new(None));
 
     let mut state = data::ProgramState{
         controllers: vec![],
         cursive_stepper: cursive_stepper::CursiveRunnableStepper{ curs: curs.into_runner() },
-        data_receiver: Box::pin(pasts::notify::poll_fn(move |ctx| Pin::new(&mut data_receiver).poll_next(ctx))),
+        data_receiver,
         listener: Box::pin(pasts::notify::poll_fn(move |ctx| std::pin::Pin::new(&mut listener).poll(ctx))),
         mount: mount.clone(),
         mount_spd: mount_spd.clone(),
@@ -84,6 +79,6 @@ fn set_up_logging() {
             ))
             .add_filter_ignore_str("cursive_core")
             .build(),
-        std::fs::File::create(logfile).unwrap()
+        std::fs::File::options().append(true).open(logfile).unwrap()
     ).unwrap();
 }
