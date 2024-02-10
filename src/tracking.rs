@@ -100,7 +100,13 @@ impl Tracking {
             return Ok(());
         }
 
-        let (mount_az, mount_alt) = self.mount.borrow_mut().as_mut().unwrap().position()?;
+        let (mount_az, mount_alt) = match self.mount.borrow_mut().as_mut().unwrap().position() {
+            Ok(p) => p,
+            Err(e) => {
+                log::warn!("failed to get mount position: {}", e);
+                return Ok(());
+            }
+        };
         let az_delta;
         let alt_delta;
         let target_az_spd;
@@ -182,7 +188,13 @@ impl Tracking {
         }
         let target = target.as_ref().unwrap();
         let target_pos = data::spherical_to_unit(target.azimuth, target.altitude);
-        let (mount_az, mount_alt) = self.mount.borrow_mut().as_mut().unwrap().position().unwrap();
+        let (mount_az, mount_alt) = match self.mount.borrow_mut().as_mut().unwrap().position() {
+            Ok(pos) => pos,
+            Err(e) => {
+                log::warn!("failed to get mount position: {}", e);
+                return;
+            }
+        };
         let adjusted_pos = data::spherical_to_unit(mount_az, mount_alt);
 
         // To be precise, before calculating the offset and its angle to `v_tangential` we should project

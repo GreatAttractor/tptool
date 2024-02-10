@@ -43,14 +43,15 @@ pub async fn event_loop(mut state: ProgramState) {
 }
 
 fn on_main_timer(state: &mut ProgramState) {
-    let (axis1, axis2) = state.mount.borrow_mut().as_mut().unwrap().position().unwrap();
-    state.mount_spd.borrow_mut().notify_pos(axis1, axis2);
-    let a1deg = as_deg(axis1);
-    let azimuth = if a1deg >= 0.0 && a1deg <= 180.0 { a1deg } else { 360.0 + a1deg };
-    //let tui = state.tui().as_ref().unwrap();
-    tui!(state).text_content.mount_az.set_content(format!("{:.2}°", azimuth));
-    tui!(state).text_content.mount_alt.set_content(format!("{:.2}°", as_deg(axis2)));
-    state.refresh_tui();
+    let pos = state.mount.borrow_mut().as_mut().unwrap().position();
+    if let Ok((axis1, axis2)) = pos {
+        state.mount_spd.borrow_mut().notify_pos(axis1, axis2);
+        let a1deg = as_deg(axis1);
+        let azimuth = if a1deg >= 0.0 && a1deg <= 180.0 { a1deg } else { 360.0 + a1deg };
+        tui!(state).text_content.mount_az.set_content(format!("{:.2}°", azimuth));
+        tui!(state).text_content.mount_alt.set_content(format!("{:.2}°", as_deg(axis2)));
+        state.refresh_tui();
+    }
 }
 
 fn on_timer(state: &mut ProgramState, idx_id: (usize, TimerId)) -> std::task::Poll<()> {

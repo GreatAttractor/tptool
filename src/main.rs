@@ -36,7 +36,10 @@ fn main() {
 	let curs = cursive::default();
     let data_receiver = data_receiver::DataReceiver::new();
     let mut listener = stick::Listener::default();
-    let mount = Rc::new(RefCell::new(Some(mount::Simulator::new(&format!("127.0.0.1:{}", MOUNT_SERVER_PORT)).unwrap())));
+
+    //let mount = Rc::new(RefCell::new(Some(mount::Simulator::new(&format!("127.0.0.1:{}", MOUNT_SERVER_PORT)).unwrap())));
+    let mount = Rc::new(RefCell::new(Some(mount::Ioptron::new("/dev/ttyUSB0").unwrap())));
+
     let mount_spd = Rc::new(RefCell::new(data::MountSpeed::new()));
     let target = Rc::new(RefCell::new(None));
 

@@ -6,7 +6,7 @@ Copyright (C) 2024 Filip Szczerek (ga.software@yahoo.com)
 
 # TODOs
 
+- set joystick dead zone
 - allow choosing which axis is the primary one
 - connect/disconnect from mount
-- connect/disconnect from data source
 - stop tracking on sudden target position change (meaning: data source has probably switched to another target)

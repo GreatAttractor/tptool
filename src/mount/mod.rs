@@ -1,9 +1,11 @@
+mod ioptron;
 mod simulator;
 
 use pointing_utils::uom;
 use std::error::Error;
 use uom::si::f64;
 
+pub use ioptron::Ioptron;
 pub use simulator::Simulator;
 
 #[derive(Copy, Clone, PartialEq)]
