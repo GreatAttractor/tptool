@@ -93,6 +93,10 @@ impl Tracking {
     }
 
     fn on_timer(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.mount.borrow().is_none() {
+            return Err("mount not connected".into());
+        }
+
         if self.adjusting { return Ok(()); }
 
         if self.mount_spd.borrow().get().is_none() {
