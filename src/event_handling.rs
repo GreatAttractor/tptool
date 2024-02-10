@@ -43,7 +43,11 @@ pub async fn event_loop(mut state: ProgramState) {
 }
 
 fn on_main_timer(state: &mut ProgramState) {
-    let pos = state.mount.borrow_mut().as_mut().unwrap().position();
+    let pos = {
+        let mut mount = state.mount.borrow_mut();
+        if mount.is_none() { return; }
+        mount.as_mut().unwrap().position()
+    };
     if let Ok((axis1, axis2)) = pos {
         state.mount_spd.borrow_mut().notify_pos(axis1, axis2);
         let a1deg = as_deg(axis1);

@@ -32,13 +32,14 @@ const MAIN_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_milli
 
 fn main() {
     set_up_logging();
-
+    println!("aaa");
 	let curs = cursive::default();
     let data_receiver = data_receiver::DataReceiver::new();
     let mut listener = stick::Listener::default();
 
     //let mount = Rc::new(RefCell::new(Some(mount::Simulator::new(&format!("127.0.0.1:{}", MOUNT_SERVER_PORT)).unwrap())));
-    let mount = Rc::new(RefCell::new(Some(mount::Ioptron::new("/dev/ttyUSB0").unwrap())));
+    //let mount = Rc::new(RefCell::new(Some(mount::Ioptron::new("/dev/ttyUSB0").unwrap())));
+    let mount = Rc::new(RefCell::new(None));
 
     let mount_spd = Rc::new(RefCell::new(data::MountSpeed::new()));
     let target = Rc::new(RefCell::new(None));
@@ -81,6 +82,6 @@ fn set_up_logging() {
             ))
             .add_filter_ignore_str("cursive_core")
             .build(),
-        std::fs::File::options().append(true).open(logfile).unwrap()
+        std::fs::File::options().create(true).append(true).open(logfile).unwrap()
     ).unwrap();
 }
