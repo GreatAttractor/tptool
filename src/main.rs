@@ -24,8 +24,7 @@ mod mount;
 mod tracking;
 mod tui;
 
-use async_std::{io::prelude::BufReadExt, stream::Stream};
-use std::{cell::RefCell, future::Future, pin::Pin, rc::Rc};
+use std::{cell::RefCell, future::Future, rc::Rc};
 
 const MOUNT_SERVER_PORT: u16 = 45501;
 const DATA_SOURCE_PORT: u16 = 45500;
