@@ -17,6 +17,7 @@
 //
 
 use async_std::{io::prelude::BufReadExt, stream::Stream};
+use crate::data;
 use pasts::notify::Notify;
 use std::{cell::RefCell, error::Error, pin::Pin, rc::{Rc, Weak}, task::{Context, Poll}};
 
@@ -60,6 +61,8 @@ impl Connection {
         }
     }
 }
+
+impl data::WeakWrapper for Connection {}
 
 impl Notify for DataReceiver {
     type Event = Result<String, std::io::Error>;

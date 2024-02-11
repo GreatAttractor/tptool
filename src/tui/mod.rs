@@ -16,7 +16,10 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use crate::{data::ProgramState, data_receiver};
+mod data_source_dialog;
+mod mount_dialog;
+
+use crate::{data::{ProgramState, WeakWrapper}, data_receiver, mount::Mount};
 use cursive::{
     align::HAlign,
     reexports::enumset,
@@ -43,16 +46,35 @@ use cursive::{
 };
 use std::{cell::RefCell, rc::Rc};
 
+/// Unique Cursive view names.
 mod names {
     pub const SERVER_ADDR: &str = "server_addr";
+    pub const MOUNT_CONNECTION: &str = "mount_connection";
 }
 
+#[macro_export]
 macro_rules! tui {
-    ($tui_rc:ident) => { $tui_rc.borrow().as_ref().unwrap() };
+    ($tui_rc:expr) => { $tui_rc.borrow().as_ref().unwrap() };
 }
 
 macro_rules! tui_mut {
-    ($tui_rc:ident) => { $tui_rc.borrow_mut().as_mut().unwrap() };
+    ($tui_rc:expr) => { $tui_rc.borrow_mut().as_mut().unwrap() };
+}
+
+macro_rules! show_dialog {
+    ($dialog_func:expr, $curs:expr, $tui:expr, $($dialog_params:expr),*) => {
+        if tui!($tui).showing_dialog { return; }
+        tui_mut!($tui).showing_dialog = true;
+        let dialog_theme = create_dialog_theme($curs);
+
+        $curs.screen_mut().add_layer_at(
+            Position::new(Offset::Center, Offset::Center),
+            ThemedView::new(
+                dialog_theme.clone(),
+                $dialog_func(&$tui, $($dialog_params),*)
+            )
+        );
+    };
 }
 
 pub struct TuiData {
@@ -114,6 +136,19 @@ pub fn init(state: &mut ProgramState) {
 
 	curs.add_global_callback('q', |c| { c.quit(); });
 
+    let mount = Rc::downgrade(&state.mount);
+    let tracking = state.tracking.controller();
+    curs.add_global_callback('s', move |_| {
+        let mount = mount.upgrade().unwrap();
+        let mut mount = mount.borrow_mut();
+        if let Some(mount) = mount.as_mut() {
+            if let Err(e) = mount.stop() {
+                log::error!("error stopping the mount: {}", e);
+            }
+            tracking.stop();
+        }
+    });
+
     let tracking = state.tracking.controller();
     curs.add_global_callback('t', move |_| {
         if tracking.is_active() {
@@ -126,7 +161,13 @@ pub fn init(state: &mut ProgramState) {
     let tui = Rc::clone(&state.tui);
     let connection = state.data_receiver.connection();
     curs.add_global_callback('d', move |curs| {
-        show_data_source_dialog(curs, &tui, &connection);
+        show_dialog!(data_source_dialog::dialog, curs, tui, &connection);
+    });
+
+    let tui = Rc::clone(&state.tui);
+    let mount = Rc::clone(&state.mount);
+    curs.add_global_callback('m', move |curs| {
+        show_dialog!(mount_dialog::dialog, curs, tui, &mount);
     });
 
     let main_theme = create_main_theme(curs.current_theme());
@@ -150,6 +191,7 @@ fn init_command_bar(curs: &mut cursive::Cursive) {
                 Rect::from_point(Vec2::zero()),
                 CommandBarBuilder::new()
                     .command('T', "Toggle target tracking")
+                    .command('S', "Stop slewing")
                     .command('D', "Data source")
                     .command('M', "Mount")
                     .command('Q', "Quit")
@@ -268,6 +310,8 @@ fn create_main_theme(base: &Theme) -> Theme {
     theme
 }
 
+// TODO: implement a master macro (à la `glib::clone`) in lieu of `make_closure*`
+
 fn make_closure<T>(
     arg1: &Rc<RefCell<T>>,
     f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T>>)
@@ -279,7 +323,7 @@ fn make_closure<T>(
     }
 }
 
-fn make_closure2<T1, T2: Clone>(
+fn make_closure2<T1, T2: WeakWrapper>(
     arg1: &Rc<RefCell<T1>>,
     arg2: &T2,
     f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T1>>, T2, &str)
@@ -292,7 +336,7 @@ fn make_closure2<T1, T2: Clone>(
     }
 }
 
-fn make_closure3<T1, T2: Clone>(
+fn make_closure3<T1, T2: WeakWrapper>(
     arg1: &Rc<RefCell<T1>>,
     arg2: &T2,
     f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T1>>, T2)
@@ -305,64 +349,39 @@ fn make_closure3<T1, T2: Clone>(
     }
 }
 
-fn show_data_source_dialog(
-    curs: &mut cursive::Cursive,
-    tui: &Rc<RefCell<Option<TuiData>>>,
-    connection: &data_receiver::Connection
-) {
-    if tui!(tui).showing_dialog { return; }
-    tui_mut!(tui).showing_dialog = true;
-    let dialog_theme = create_dialog_theme(curs);
-
-    curs.screen_mut().add_layer_at(
-        Position::new(Offset::Center, Offset::Center),
-        ThemedView::new(
-            dialog_theme.clone(),
-            Dialog::around(
-                LinearLayout::horizontal()
-                    .child(TextView::new("Server address:"))
-                    .child(EditView::new()
-                        .on_submit(make_closure2(tui, connection, |curs, tui, connection, s| {
-                            on_connect_to_data_source(curs, tui, connection, s);
-                        }))
-                        .with_name(names::SERVER_ADDR)
-                        .fixed_width(20)
-                )
-            )
-            .button("OK", make_closure3(tui, connection, |curs, tui, connection| {
-                let server_address = curs.call_on_name(
-                    names::SERVER_ADDR, |v: &mut EditView| { v.get_content() }
-                ).unwrap();
-                on_connect_to_data_source(curs, tui, connection, &server_address);
-            }))
-            .button("Cancel", make_closure(tui, |curs, tui| close_dialog(curs, tui)))
-            .title("Connect to data source")
-            .wrap_with(CircularFocus::new)
-            .wrap_tab()
-        )
-    );
+fn make_closure4<T1, T2>(
+    arg1: &Rc<RefCell<T1>>,
+    arg2: &Rc<RefCell<T2>>,
+    f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T1>>, &Rc<RefCell<T2>>, &str)
+) -> impl Fn(&mut cursive::Cursive, &str) {
+    let arg1 = Rc::downgrade(arg1);
+    let arg2 = Rc::downgrade(arg2);
+    move |curs, s| {
+        let arg1 = arg1.upgrade().unwrap();
+        let arg2 = arg2.upgrade().unwrap();
+        f(curs, &arg1, &arg2, s);
+    }
 }
 
-fn on_connect_to_data_source(
-    curs: &mut cursive::Cursive,
-    tui: &Rc<RefCell<Option<TuiData>>>,
-    connection: data_receiver::Connection,
-    server_addr: &str
-) {
-    match connection.connect(server_addr) {
-        Ok(()) => {
-            log::info!("connected to data source {}", server_addr);
-            close_dialog(curs, tui);
-        },
-
-        Err(e) => {
-            log::error!("error connecting to data source \"{}\": {}", server_addr, e);
-            curs.add_layer(ThemedView::new(
-                create_dialog_theme(curs),
-                Dialog::info(format!("Failed to connect to \"{}\":\n{}.", server_addr, e)).title("Error")
-            ));
-        }
+fn make_closure5<T1, T2>(
+    arg1: &Rc<RefCell<T1>>,
+    arg2: &Rc<RefCell<T2>>,
+    f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T1>>, &Rc<RefCell<T2>>)
+) -> impl Fn(&mut cursive::Cursive) {
+    let arg1 = Rc::downgrade(arg1);
+    let arg2 = Rc::downgrade(arg2);
+    move |curs| {
+        let arg1 = arg1.upgrade().unwrap();
+        let arg2 = arg2.upgrade().unwrap();
+        f(curs, &arg1, &arg2);
     }
+}
+
+fn msg_box(curs: &mut cursive::Cursive, text: &str, title: &str) {
+    curs.add_layer(ThemedView::new(
+        create_dialog_theme(curs),
+        Dialog::info(text).title(title)
+    ));
 }
 
 fn create_dialog_theme(curs: &cursive::Cursive) -> theme::Theme {

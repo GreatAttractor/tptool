@@ -103,6 +103,11 @@ fn on_controller_connected(state: &mut ProgramState, mut controller: stick::Cont
 fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::Event))) -> std::task::Poll<()> {
     let (index, (id, event)) = idx_val;
 
+    state.tui().as_ref().unwrap().text_content.controller_event.set_content(format!("{}", event)); //TESTING #########
+    state.refresh_tui();
+
+    if state.mount.borrow().is_none() { return Poll::Pending; }
+
     if let stick::Event::Disconnect = event {
         if id == CONTROLLER_ID {
             state.tui().as_ref().unwrap().text_content.controller_name.set_content("(disconnected)");
@@ -151,12 +156,14 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
                 state.tracking.adjust_slew(state.slewing.axis1_rel, state.slewing.axis2_rel);
             } else {
                 let spd = data::deg_per_s(3.0);
-                state.mount.borrow_mut().as_mut().unwrap().slew(spd * state.slewing.axis1_rel, spd * state.slewing.axis2_rel).unwrap();
+                if let Err(e) = state.mount.borrow_mut().as_mut().unwrap().slew(
+                    spd * state.slewing.axis1_rel,
+                    spd * state.slewing.axis2_rel
+                ) {
+                    log::error!("error when slewing: {}", e);
+                }
             }
         }
-
-        state.tui().as_ref().unwrap().text_content.controller_event.set_content(format!("{}", event)); //TESTING #########
-        state.refresh_tui();
     }
 
     std::task::Poll::Pending

@@ -36,6 +36,9 @@ pub mod timers {
     pub const MAIN: TimerId = 1;
 }
 
+/// Can be cloned without introducing reference cycles.
+pub trait WeakWrapper: Clone {}
+
 pub struct Slewing {
     // values from [-1.0, 1.0]
     pub axis1_rel: f64,

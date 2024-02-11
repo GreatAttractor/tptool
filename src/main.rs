@@ -32,7 +32,6 @@ const MAIN_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_milli
 
 fn main() {
     set_up_logging();
-    println!("aaa");
 	let curs = cursive::default();
     let data_receiver = data_receiver::DataReceiver::new();
     let mut listener = stick::Listener::default();
