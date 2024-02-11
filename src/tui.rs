@@ -74,6 +74,41 @@ pub struct Texts {
     pub mount_alt_spd: TextContent,
 }
 
+struct CommandBarBuilder {
+    highlight: theme::Style,
+    contents: cursive::utils::span::SpannedString<theme::Style>
+}
+
+impl CommandBarBuilder {
+    fn new() -> CommandBarBuilder {
+        CommandBarBuilder{
+            highlight: theme::Style{
+                effects: enumset::EnumSet::from(theme::Effect::Simple),
+                color: theme::ColorStyle{
+                    front: theme::ColorType::Color(theme::Color::Rgb(0, 0, 0)),
+                    back: theme::ColorType::Color(theme::Color::Rgb(200, 200, 200)),
+                }
+            },
+            contents: cursive::utils::span::SpannedString::new(),
+        }
+    }
+
+    fn command(mut self, highlighted: char, descr: &str) -> CommandBarBuilder {
+        for s in [' ', highlighted, ' '] {
+            self.contents.append_styled(s, self.highlight);
+        }
+        for s in [" ", descr, "    "] {
+            self.contents.append_plain(s);
+        }
+
+        self
+    }
+
+    fn build(self) -> TextView {
+        TextView::new(self.contents)
+    }
+}
+
 pub fn init(state: &mut ProgramState) {
     let curs = &mut state.cursive_stepper.curs;
 
@@ -90,7 +125,7 @@ pub fn init(state: &mut ProgramState) {
 
     let tui = Rc::clone(&state.tui);
     let connection = state.data_receiver.connection();
-    curs.add_global_callback('c', move |curs| {
+    curs.add_global_callback('d', move |curs| {
         show_data_source_dialog(curs, &tui, &connection);
     });
 
@@ -113,7 +148,12 @@ fn init_command_bar(curs: &mut cursive::Cursive) {
         OnLayoutView::new(
             FixedLayout::new().child(
                 Rect::from_point(Vec2::zero()),
-                TextView::new(">T<Toggle target tracking  >C<Connect to data source"),
+                CommandBarBuilder::new()
+                    .command('T', "Toggle target tracking")
+                    .command('D', "Data source")
+                    .command('M', "Mount")
+                    .command('Q', "Quit")
+                    .build()
             ),
             |layout, size| {
                 let rect = Rect::from_size((0, size.y - 1), (size.x, 1));
