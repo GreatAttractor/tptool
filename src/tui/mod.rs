@@ -18,8 +18,10 @@
 
 mod data_source_dialog;
 mod mount_dialog;
+mod ref_pos_dialog;
+mod zero_pos_dialog;
 
-use crate::data::{ProgramState, WeakWrapper};
+use crate::{data::{ProgramState, WeakWrapper}, mount::Mount};
 use cursive::{
     align::HAlign,
     reexports::enumset,
@@ -47,6 +49,8 @@ use std::{cell::RefCell, rc::Rc};
 mod names {
     pub const SERVER_ADDR: &str = "server_addr";
     pub const MOUNT_CONNECTION: &str = "mount_connection";
+    pub const REF_POS_AZ: &str = "ref_pos_azimuth";
+    pub const REF_POS_ALT: &str = "ref_pos_altitude";
 }
 
 #[macro_export]
@@ -116,7 +120,7 @@ impl CommandBarBuilder {
         for s in [' ', highlighted, ' '] {
             self.contents.append_styled(s, self.highlight);
         }
-        for s in [" ", descr, "    "] {
+        for s in [" ", descr, "  "] {
             self.contents.append_plain(s);
         }
 
@@ -167,6 +171,26 @@ pub fn init(state: &mut ProgramState) {
         show_dialog!(mount_dialog::dialog, curs, tui, &mount);
     });
 
+    let tui = Rc::clone(&state.tui);
+    let mount = Rc::clone(&state.mount);
+    curs.add_global_callback('r', move |curs| {
+        if mount.borrow().is_none() {
+            msg_box(curs, "Not connected to a mount.", "Error");
+        } else {
+            show_dialog!(ref_pos_dialog::dialog, curs, tui, &mount);
+        }
+    });
+
+    let tui = Rc::clone(&state.tui);
+    let mount = Rc::clone(&state.mount);
+    curs.add_global_callback('z', move |curs| {
+        if mount.borrow().is_none() {
+            msg_box(curs, "Not connected to a mount.", "Error");
+        } else {
+            show_dialog!(zero_pos_dialog::dialog, curs, tui, &mount);
+        }
+    });
+
     let main_theme = create_main_theme(curs.current_theme());
     curs.set_theme(main_theme);
 
@@ -187,10 +211,12 @@ fn init_command_bar(curs: &mut cursive::Cursive) {
             FixedLayout::new().child(
                 Rect::from_point(Vec2::zero()),
                 CommandBarBuilder::new()
-                    .command('T', "Toggle target tracking")
+                    .command('T', "Toggle tracking")
                     .command('S', "Stop slewing")
                     .command('D', "Data source")
                     .command('M', "Mount")
+                    .command('R', "Ref. position")
+                    .command('Z', "Zero position")
                     .command('Q', "Quit")
                     .build()
             ),
@@ -377,7 +403,7 @@ fn make_closure5<T1, T2>(
 fn msg_box(curs: &mut cursive::Cursive, text: &str, title: &str) {
     curs.add_layer(ThemedView::new(
         create_dialog_theme(curs),
-        Dialog::info(text).title(title)
+        Dialog::text(text).title(title).dismiss_button("OK")
     ));
 }
 

@@ -21,7 +21,7 @@ use cgmath::{Basis3, Deg, EuclideanSpace, InnerSpace, Point3, Rad, Rotation, Rot
 use crate::{
     cursive_stepper::CursiveRunnableStepper,
     data_receiver::DataReceiver,
-    mount::Mount,
+    mount,
     tracking::Tracking,
     tui::TuiData
 };
@@ -116,7 +116,7 @@ pub struct ProgramState {
     pub cursive_stepper: CursiveRunnableStepper,
     pub data_receiver: DataReceiver,
     pub listener: Pin<Box<dyn pasts::notify::Notify<Event = stick::Controller>>>,
-    pub mount: Rc<RefCell<Option<Box<dyn Mount>>>>,
+    pub mount: Rc<RefCell<Option<mount::MountWrapper>>>,
     pub mount_spd: Rc<RefCell<MountSpeed>>,
     pub slewing: Slewing,
     pub timers: Vec<Timer>,

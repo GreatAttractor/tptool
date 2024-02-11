@@ -1,5 +1,5 @@
 use cgmath::{Basis3, Deg, EuclideanSpace, InnerSpace, Point3, Rad, Rotation, Rotation3, Vector3};
-use crate::{data, data::{as_deg, as_deg_per_s, deg, deg_per_s, time, MountSpeed}, mount::{Axis, Mount}};
+use crate::{data, data::{as_deg, as_deg_per_s, deg, deg_per_s, time, MountSpeed}, mount, mount::{Axis, Mount}};
 use pasts::notify::Notify;
 use pointing_utils::{cgmath, uom};
 use std::{cell::RefCell, error::Error, pin::Pin, rc::Rc, task::{Context, Poll, Waker}};
@@ -66,7 +66,7 @@ struct Adjustment {
 
 pub struct Tracking {
     max_spd: AngSpeed,
-    mount: Rc<RefCell<Option<Box<dyn Mount>>>>,
+    mount: Rc<RefCell<Option<mount::MountWrapper>>>,
     mount_spd: Rc<RefCell<MountSpeed>>, // TODO: make it unwriteable from here
     state: Rc<RefCell<State>>,
     target: Rc<RefCell<Option<data::Target>>>, // TODO: make it unwriteable from here
@@ -77,7 +77,7 @@ pub struct Tracking {
 impl Tracking {
     pub fn new(
         max_spd: AngSpeed,
-        mount: Rc<RefCell<Option<Box<dyn Mount>>>>,
+        mount: Rc<RefCell<Option<mount::MountWrapper>>>,
         mount_spd: Rc<RefCell<MountSpeed>>,
         target: Rc<RefCell<Option<data::Target>>>,
     ) -> Tracking {

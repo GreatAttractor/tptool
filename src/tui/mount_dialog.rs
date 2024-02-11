@@ -55,14 +55,14 @@ impl MountType {
     fn connection_param_descr(&self) -> &'static str {
         match self {
             MountType::Simulator => "IP address:",
-            MountType::Ioptron => "Serial device (e.g., \"/dev/ttyUSB0\" on Linux or \"COM3\" on Windows):",
+            MountType::Ioptron => "Serial device (e.g., \"/dev/ttyUSB0\" on Linux\nor \"COM3\" on Windows):",
         }
     }
 }
 
 pub fn dialog(
     tui: &Rc<RefCell<Option<TuiData>>>,
-    mount: &Rc<RefCell<Option<Box<dyn mount::Mount>>>>
+    mount: &Rc<RefCell<Option<mount::MountWrapper>>>
 ) -> impl View {
     let param_descr_content = TextContent::new("");
     let param_descr = TextView::new_with_content(param_descr_content.clone());
@@ -102,7 +102,7 @@ pub fn dialog(
 fn on_connect_to_mount(
     curs: &mut cursive::Cursive,
     tui: &Rc<RefCell<Option<TuiData>>>,
-    mount: &Rc<RefCell<Option<Box<dyn mount::Mount>>>>,
+    mount: &Rc<RefCell<Option<mount::MountWrapper>>>,
     mount_type: MountType,
     connection_param: &str
 ) {
@@ -115,7 +115,7 @@ fn on_connect_to_mount(
         Ok(m) => {
             log::info!("connected to {}", m.get_info());
             tui!(tui).text_content.mount_name.set_content(m.get_info());
-            *mount.borrow_mut() = Some(m);
+            *mount.borrow_mut() = Some(mount::MountWrapper::new(m));
             close_dialog(curs, tui);
         },
         Err(e) => {
