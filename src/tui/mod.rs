@@ -19,7 +19,7 @@
 mod data_source_dialog;
 mod mount_dialog;
 
-use crate::{data::{ProgramState, WeakWrapper}, data_receiver, mount::Mount};
+use crate::data::{ProgramState, WeakWrapper};
 use cursive::{
     align::HAlign,
     reexports::enumset,
@@ -28,12 +28,10 @@ use cursive::{
     theme::Theme,
     Vec2,
     View,
-    view::{Nameable, Offset, Position, Resizable},
+    view::{Offset, Position, Resizable},
     views::{
-        CircularFocus,
         Dialog,
         DummyView,
-        EditView,
         FixedLayout,
         LinearLayout,
         OnLayoutView,
@@ -42,7 +40,6 @@ use cursive::{
         TextView,
         ThemedView
     },
-    With
 };
 use std::{cell::RefCell, rc::Rc};
 
