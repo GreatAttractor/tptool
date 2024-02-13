@@ -16,6 +16,7 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+mod config;
 mod cursive_stepper;
 mod data;
 mod data_receiver;
@@ -42,6 +43,7 @@ fn main() {
     let target = Rc::new(RefCell::new(None));
 
     let mut state = data::ProgramState{
+        config: Rc::new(RefCell::new(config::Configuration::new())),
         controllers: vec![],
         cursive_stepper: cursive_stepper::CursiveRunnableStepper{ curs: curs.into_runner() },
         data_receiver,

@@ -17,12 +17,10 @@
 //
 
 use crate::{
+    cclone,
     data_receiver,
     tui::{
         close_dialog,
-        make_closure,
-        make_closure2,
-        make_closure3,
         msg_box,
         names,
         TuiData
@@ -43,26 +41,29 @@ use std::{cell::RefCell, rc::Rc};
 
 pub fn dialog(
     tui: &Rc<RefCell<Option<TuiData>>>,
-    connection: &data_receiver::Connection
+    connection: data_receiver::Connection
 ) -> impl View {
     Dialog::around(
         LinearLayout::horizontal()
             .child(TextView::new("Server address:"))
             .child(EditView::new()
-                .on_submit(make_closure2(tui, connection, |curs, tui, connection, s| {
-                    on_connect_to_data_source(curs, tui, connection, s);
+                .on_submit(cclone!([@weak tui, connection], move |curs, s| {
+                    let tui = tui.upgrade().unwrap();
+                    on_connect_to_data_source(curs, &tui, connection.clone(), s);
                 }))
+
                 .with_name(names::SERVER_ADDR)
                 .fixed_width(20)
         )
     )
-    .button("OK", make_closure3(tui, connection, |curs, tui, connection| {
+    .button("OK", cclone!([@weak tui, connection], move |curs| {
+        let tui = tui.upgrade().unwrap();
         let server_address = curs.call_on_name(
             names::SERVER_ADDR, |v: &mut EditView| { v.get_content() }
         ).unwrap();
-        on_connect_to_data_source(curs, tui, connection, &server_address);
+        on_connect_to_data_source(curs, &tui, connection.clone(), &server_address);
     }))
-    .button("Cancel", make_closure(tui, |curs, tui| close_dialog(curs, tui)))
+    .button("Cancel", cclone!([@weak tui], move |curs| { let tui = tui.upgrade().unwrap(); close_dialog(curs, &tui); }))
     .title("Connect to data source")
     .wrap_with(CircularFocus::new)
     .wrap_tab()

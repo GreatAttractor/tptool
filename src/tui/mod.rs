@@ -159,16 +159,18 @@ pub fn init(state: &mut ProgramState) {
         }
     });
 
+    // TODO: use an automatically-downgrading macro here and elsewhere; to avoid cycles, never give Rc clones to callback closures
     let tui = Rc::clone(&state.tui);
     let connection = state.data_receiver.connection();
     curs.add_global_callback('d', move |curs| {
-        show_dialog!(data_source_dialog::dialog, curs, tui, &connection);
+        show_dialog!(data_source_dialog::dialog, curs, tui, connection.clone());
     });
 
     let tui = Rc::clone(&state.tui);
     let mount = Rc::clone(&state.mount);
+    let config = Rc::clone(&state.config);
     curs.add_global_callback('m', move |curs| {
-        show_dialog!(mount_dialog::dialog, curs, tui, &mount);
+        show_dialog!(mount_dialog::dialog, curs, tui, &mount, &config);
     });
 
     let tui = Rc::clone(&state.tui);
@@ -333,71 +335,28 @@ fn create_main_theme(base: &Theme) -> Theme {
     theme
 }
 
-// TODO: implement a master macro (à la `glib::clone`) in lieu of `make_closure*`
+// TODO: upgrade automatically
 
-fn make_closure<T>(
-    arg1: &Rc<RefCell<T>>,
-    f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T>>)
-) -> impl Fn(&mut cursive::Cursive) {
-    let data = Rc::downgrade(arg1);
-    move |curs| {
-        let data = data.upgrade().unwrap();
-        f(curs, &data);
-    }
-}
+#[macro_export]
+macro_rules! cclone {
+    ([$($tt:tt)*], $expr:expr) => {{
+        crate::cclone!($($tt)*);
 
-fn make_closure2<T1, T2: WeakWrapper>(
-    arg1: &Rc<RefCell<T1>>,
-    arg2: &T2,
-    f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T1>>, T2, &str)
-) -> impl Fn(&mut cursive::Cursive, &str) {
-    let arg1 = Rc::downgrade(arg1);
-    let arg2 = arg2.clone();
-    move |curs, s| {
-        let arg1 = arg1.upgrade().unwrap();
-        f(curs, &arg1, arg2.clone(), s);
-    }
-}
+        $expr
+    }};
 
-fn make_closure3<T1, T2: WeakWrapper>(
-    arg1: &Rc<RefCell<T1>>,
-    arg2: &T2,
-    f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T1>>, T2)
-) -> impl Fn(&mut cursive::Cursive) {
-    let arg1 = Rc::downgrade(arg1);
-    let arg2 = arg2.clone();
-    move |curs| {
-        let arg1 = arg1.upgrade().unwrap();
-        f(curs, &arg1, arg2.clone());
-    }
-}
+    ($(,)? @weak $ident:ident $($tt:tt)*) => {
+        let $ident = Rc::downgrade(&$ident);
+        crate::cclone!($($tt)*);
+    };
 
-fn make_closure4<T1, T2>(
-    arg1: &Rc<RefCell<T1>>,
-    arg2: &Rc<RefCell<T2>>,
-    f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T1>>, &Rc<RefCell<T2>>, &str)
-) -> impl Fn(&mut cursive::Cursive, &str) {
-    let arg1 = Rc::downgrade(arg1);
-    let arg2 = Rc::downgrade(arg2);
-    move |curs, s| {
-        let arg1 = arg1.upgrade().unwrap();
-        let arg2 = arg2.upgrade().unwrap();
-        f(curs, &arg1, &arg2, s);
-    }
-}
 
-fn make_closure5<T1, T2>(
-    arg1: &Rc<RefCell<T1>>,
-    arg2: &Rc<RefCell<T2>>,
-    f: impl Fn(&mut cursive::Cursive, &Rc<RefCell<T1>>, &Rc<RefCell<T2>>)
-) -> impl Fn(&mut cursive::Cursive) {
-    let arg1 = Rc::downgrade(arg1);
-    let arg2 = Rc::downgrade(arg2);
-    move |curs| {
-        let arg1 = arg1.upgrade().unwrap();
-        let arg2 = arg2.upgrade().unwrap();
-        f(curs, &arg1, &arg2);
-    }
+    ($(,)? $ident:ident $($tt:tt)*) => {
+        let $ident = ::std::clone::Clone::clone(&$ident);
+        crate::cclone!($($tt)*);
+    };
+
+    ($(,)?) => {};
 }
 
 fn msg_box(curs: &mut cursive::Cursive, text: &str, title: &str) {

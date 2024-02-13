@@ -19,6 +19,7 @@
 use async_std::stream::Stream;
 use cgmath::{Basis3, Deg, EuclideanSpace, InnerSpace, Point3, Rad, Rotation, Rotation3, Vector3};
 use crate::{
+    config::Configuration,
     cursive_stepper::CursiveRunnableStepper,
     data_receiver::DataReceiver,
     mount,
@@ -112,6 +113,7 @@ impl MountSpeed {
 }
 
 pub struct ProgramState {
+    pub config: Rc<RefCell<Configuration>>,
     pub controllers: Vec<Pin<Box<dyn pasts::notify::Notify<Event = (u64, stick::Event)>>>>,
     pub cursive_stepper: CursiveRunnableStepper,
     pub data_receiver: DataReceiver,

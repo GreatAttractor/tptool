@@ -17,18 +17,11 @@
 //
 
 use crate::{
+    cclone,
     data::deg,
     mount,
     tui,
-    tui::{
-        close_dialog,
-        make_closure,
-        make_closure4,
-        make_closure5,
-        msg_box,
-        names,
-        TuiData
-    }
+    tui::{close_dialog, msg_box, names, TuiData}
 };
 use cursive::{
     view::{Nameable, Resizable, View},
@@ -68,7 +61,10 @@ pub fn dialog(
                     .child(TextView::new("°"))
             )
     )
-    .button("OK", make_closure5(tui, mount, move |curs, tui, mount| {
+    .button("OK", cclone!([@weak tui, @weak mount], move |curs| {
+        let tui = tui.upgrade().unwrap();
+        let mount = mount.upgrade().unwrap();
+
         let ref_az = curs.call_on_name( names::REF_POS_AZ, |v: &mut EditView| { v.get_content() }).unwrap();
         let ref_alt = curs.call_on_name( names::REF_POS_ALT, |v: &mut EditView| { v.get_content() }).unwrap();
 
@@ -77,7 +73,7 @@ pub fn dialog(
 
         let err: Option<_> = match (ref_az, ref_alt) {
             (Ok(ref_az), Ok(ref_alt)) => {
-                close_dialog(curs, tui);
+                close_dialog(curs, &tui);
                 if let Err(e) = mount.borrow_mut().as_mut().unwrap().set_reference_position(deg(ref_az), deg(ref_alt)) {
                     msg_box(curs, &format!("Failed to set ref. position:\n{}", e), "Error");
                 }
@@ -90,7 +86,7 @@ pub fn dialog(
 
         if let Some(err) = err { msg_box(curs, &format!("Invalid value: {}.", err), "Error"); }
     }))
-    .button("Cancel", make_closure(tui, |curs, tui| close_dialog(curs, tui)))
+    .button("Cancel", crate::cclone!([@weak tui], move |curs| { let tui = tui.upgrade().unwrap(); close_dialog(curs, &tui); }))
     .title("Set current reference position")
     .wrap_with(CircularFocus::new)
     .wrap_tab()

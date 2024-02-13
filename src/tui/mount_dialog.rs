@@ -17,17 +17,11 @@
 //
 
 use crate::{
+    cclone,
+    config::Configuration,
     mount,
     tui,
-    tui::{
-        close_dialog,
-        make_closure,
-        make_closure4,
-        make_closure5,
-        msg_box,
-        names,
-        TuiData
-    }
+    tui::{close_dialog, msg_box, names, TuiData}
 };
 use cursive::{
     view::{Nameable, Resizable, View},
@@ -62,7 +56,8 @@ impl MountType {
 
 pub fn dialog(
     tui: &Rc<RefCell<Option<TuiData>>>,
-    mount: &Rc<RefCell<Option<mount::MountWrapper>>>
+    mount: &Rc<RefCell<Option<mount::MountWrapper>>>,
+    config: &Rc<RefCell<Configuration>>
 ) -> impl View {
     let param_descr_content = TextContent::new("");
     let param_descr = TextView::new_with_content(param_descr_content.clone());
@@ -80,20 +75,25 @@ pub fn dialog(
             .child(DummyView{})
             .child(param_descr)
             .child(EditView::new()
-                .on_submit(make_closure4(tui, mount, move |curs, tui, mount, s| {
-                    on_connect_to_mount(curs, tui, &mount, *rb_group.selection(), s);
+                .on_submit(cclone!([@weak tui, @weak mount], move |curs, s| {
+                    let tui = tui.upgrade().unwrap();
+                    let mount = mount.upgrade().unwrap();
+                    on_connect_to_mount(curs, &tui, &mount, *rb_group.selection(), s);
                 }))
                 .with_name(names::MOUNT_CONNECTION)
                 .fixed_width(20)
             )
     )
-    .button("OK", make_closure5(tui, mount, move |curs, tui, mount| {
+    .button("OK", cclone!([@weak tui, @weak mount], move |curs| {
+        let tui = tui.upgrade().unwrap();
+        let mount = mount.upgrade().unwrap();
         let connection_param = curs.call_on_name(
             names::MOUNT_CONNECTION, |v: &mut EditView| { v.get_content() }
         ).unwrap();
-        on_connect_to_mount(curs, tui, &mount, *rb_group2.selection(), &connection_param);
-}))
-    .button("Cancel", make_closure(tui, |curs, tui| close_dialog(curs, tui)))
+        on_connect_to_mount(curs, &tui, &mount, *rb_group2.selection(), &connection_param);
+    }))
+
+    .button("Cancel",crate::cclone!([@weak tui], move |curs| { let tui = tui.upgrade().unwrap(); close_dialog(curs, &tui); }))
     .title("Connect to mount")
     .wrap_with(CircularFocus::new)
     .wrap_tab()

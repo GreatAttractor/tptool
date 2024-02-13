@@ -17,18 +17,11 @@
 //
 
 use crate::{
+    cclone,
     data::deg,
     mount,
     tui,
-    tui::{
-        close_dialog,
-        make_closure,
-        make_closure4,
-        make_closure5,
-        msg_box,
-        names,
-        TuiData
-    }
+    tui::{close_dialog, msg_box, names, TuiData}
 };
 use cursive::{
     view::{Nameable, Resizable, View},
@@ -52,14 +45,17 @@ pub fn dialog(
             // TODO: give (and implement) the option of "go to zero position"
             .child(TextView::new("Mark the current mount position as the zero (home) position?"))
     )
-    .button("OK", make_closure5(tui, mount, move |curs, tui, mount| {
-        if let Err(e) = mount.borrow_mut().as_mut().unwrap().set_zero_position() {
+    .button("OK", cclone!([@weak tui, @weak mount], move |curs| {
+        let tui = tui.upgrade().unwrap();
+        let mount = mount.upgrade().unwrap();
+        let mut mount = mount.borrow_mut();
+        if let Err(e) = mount.as_mut().unwrap().set_zero_position() {
             msg_box(curs, &format!("Failed to set zero position: {}.", e), "Error");
         } else {
-            close_dialog(curs, tui)
+            close_dialog(curs, &tui)
         }
     }))
-    .button("Cancel", make_closure(tui, |curs, tui| close_dialog(curs, tui)))
+    .button("Cancel", crate::cclone!([@weak tui], move |curs| { let tui = tui.upgrade().unwrap(); close_dialog(curs, &tui); }))
     .title("Zero position")
     .wrap_with(CircularFocus::new)
     .wrap_tab()
