@@ -335,8 +335,6 @@ fn create_main_theme(base: &Theme) -> Theme {
     theme
 }
 
-// TODO: upgrade automatically
-
 #[macro_export]
 macro_rules! cclone {
     ([$($tt:tt)*], $expr:expr) => {{
@@ -354,6 +352,16 @@ macro_rules! cclone {
     ($(,)? $ident:ident $($tt:tt)*) => {
         let $ident = ::std::clone::Clone::clone(&$ident);
         crate::cclone!($($tt)*);
+    };
+
+    ($(,)?) => {};
+}
+
+#[macro_export]
+macro_rules! upgrade {
+    ($(,)? $ident:ident $($tt:tt)*) => {
+        let $ident = $ident.upgrade().unwrap();
+        crate::upgrade!($($tt)*);
     };
 
     ($(,)?) => {};

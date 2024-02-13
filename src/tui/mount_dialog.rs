@@ -21,7 +21,8 @@ use crate::{
     config::Configuration,
     mount,
     tui,
-    tui::{close_dialog, msg_box, names, TuiData}
+    tui::{close_dialog, msg_box, names, TuiData},
+    upgrade
 };
 use cursive::{
     view::{Nameable, Resizable, View},
@@ -76,8 +77,7 @@ pub fn dialog(
             .child(param_descr)
             .child(EditView::new()
                 .on_submit(cclone!([@weak tui, @weak mount], move |curs, s| {
-                    let tui = tui.upgrade().unwrap();
-                    let mount = mount.upgrade().unwrap();
+                    upgrade!(tui, mount);
                     on_connect_to_mount(curs, &tui, &mount, *rb_group.selection(), s);
                 }))
                 .with_name(names::MOUNT_CONNECTION)
@@ -85,15 +85,14 @@ pub fn dialog(
             )
     )
     .button("OK", cclone!([@weak tui, @weak mount], move |curs| {
-        let tui = tui.upgrade().unwrap();
-        let mount = mount.upgrade().unwrap();
+        upgrade!(tui, mount);
         let connection_param = curs.call_on_name(
             names::MOUNT_CONNECTION, |v: &mut EditView| { v.get_content() }
         ).unwrap();
         on_connect_to_mount(curs, &tui, &mount, *rb_group2.selection(), &connection_param);
     }))
 
-    .button("Cancel",crate::cclone!([@weak tui], move |curs| { let tui = tui.upgrade().unwrap(); close_dialog(curs, &tui); }))
+    .button("Cancel",crate::cclone!([@weak tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
     .title("Connect to mount")
     .wrap_with(CircularFocus::new)
     .wrap_tab()

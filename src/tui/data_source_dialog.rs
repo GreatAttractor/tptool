@@ -24,7 +24,8 @@ use crate::{
         msg_box,
         names,
         TuiData
-    }
+    },
+    upgrade
 };
 use cursive::{
     view::{Nameable, Resizable, View},
@@ -48,7 +49,7 @@ pub fn dialog(
             .child(TextView::new("Server address:"))
             .child(EditView::new()
                 .on_submit(cclone!([@weak tui, connection], move |curs, s| {
-                    let tui = tui.upgrade().unwrap();
+                    upgrade!(tui);
                     on_connect_to_data_source(curs, &tui, connection.clone(), s);
                 }))
 
@@ -57,13 +58,13 @@ pub fn dialog(
         )
     )
     .button("OK", cclone!([@weak tui, connection], move |curs| {
-        let tui = tui.upgrade().unwrap();
+        upgrade!(tui);
         let server_address = curs.call_on_name(
             names::SERVER_ADDR, |v: &mut EditView| { v.get_content() }
         ).unwrap();
         on_connect_to_data_source(curs, &tui, connection.clone(), &server_address);
     }))
-    .button("Cancel", cclone!([@weak tui], move |curs| { let tui = tui.upgrade().unwrap(); close_dialog(curs, &tui); }))
+    .button("Cancel", cclone!([@weak tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
     .title("Connect to data source")
     .wrap_with(CircularFocus::new)
     .wrap_tab()

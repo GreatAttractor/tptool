@@ -21,7 +21,8 @@ use crate::{
     data::deg,
     mount,
     tui,
-    tui::{close_dialog, msg_box, names, TuiData}
+    tui::{close_dialog, msg_box, names, TuiData},
+    upgrade
 };
 use cursive::{
     view::{Nameable, Resizable, View},
@@ -46,8 +47,7 @@ pub fn dialog(
             .child(TextView::new("Mark the current mount position as the zero (home) position?"))
     )
     .button("OK", cclone!([@weak tui, @weak mount], move |curs| {
-        let tui = tui.upgrade().unwrap();
-        let mount = mount.upgrade().unwrap();
+        upgrade!(tui, mount);
         let mut mount = mount.borrow_mut();
         if let Err(e) = mount.as_mut().unwrap().set_zero_position() {
             msg_box(curs, &format!("Failed to set zero position: {}.", e), "Error");
@@ -55,7 +55,7 @@ pub fn dialog(
             close_dialog(curs, &tui)
         }
     }))
-    .button("Cancel", crate::cclone!([@weak tui], move |curs| { let tui = tui.upgrade().unwrap(); close_dialog(curs, &tui); }))
+    .button("Cancel", crate::cclone!([@weak tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
     .title("Zero position")
     .wrap_with(CircularFocus::new)
     .wrap_tab()
