@@ -333,6 +333,34 @@ fn create_main_theme(base: &Theme) -> Theme {
     theme
 }
 
+/// Simplifies passing weak references to closures. Instead of:
+///
+///   let r1 = Rc::new(1);
+///   let r2 = Rc::new(2);
+///   let r3 = Rc::new(3);
+///
+///   let r1_weak_ref = Rc::downgrade(&r1);
+///   let r2_weak_ref = Rc::downgrade(&r2);
+///   let r3_strong_ref = Rc::clone(&r3);
+///   let c = move || { / *do sth with r1_weak_ref, r2_weak_ref, r3_strong_ref*/ };
+///
+/// one can write:
+///
+///   let c = cclone!([@weak r1, @weak r2, r3], move || { / *do sth with r1, r2, r3*/ });
+///
+/// To pass an expression:
+///
+///   let c = cclone!([@weak (struct1.struct2.rc_field) as my_name_of_rc_field], || { /* ... */ });
+///
+/// Use `upgrade!` to automatically upgrade `Weak`s inside the closure; instead of:
+///
+///   let r1 = r1.upgrade().unwrap();
+///   let r2 = r2.upgrade().unwrap();
+///
+/// one can write:
+///
+///   upgrade!(r1, r2);
+///
 #[macro_export]
 macro_rules! cclone {
     ([$($tt:tt)*], $expr:expr) => {{
