@@ -29,6 +29,7 @@ mod keys {
     pub const MOUNT_TYPE: &str = "MountType";
     pub const MOUNT_SIM_ADDRESS: &str = "MountSimulatorAddr";
     pub const MOUNT_IOPTRON_DEVICE: &str = "MountIoptronDevice";
+    pub const DATA_SOURCE_ADDRESS: &str = "DataSourceAddr";
 }
 
 pub struct Configuration {
@@ -77,6 +78,13 @@ impl Configuration {
         self.set_string(sections::MAIN, keys::MOUNT_IOPTRON_DEVICE, value);
     }
 
+    pub fn data_source_addr(&self) -> Option<String> {
+        self.get_string(sections::MAIN, keys::DATA_SOURCE_ADDRESS)
+    }
+
+    pub fn set_data_source_addr(&mut self, value: &str) {
+        self.set_string(sections::MAIN, keys::DATA_SOURCE_ADDRESS, value);
+    }
 }
 
 impl Drop for Configuration {

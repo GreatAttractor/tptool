@@ -64,32 +64,41 @@ pub fn dialog(
     let param_descr = TextView::new_with_content(param_descr_content.clone());
 
     let mut rb_group = RadioGroup::new()
-        .on_change(move |_, mount_type: &MountType| {
+        .on_change(cclone!([config], move |curs, mount_type: &MountType| {
+            upgrade!(config);
             param_descr_content.set_content(mount_type.connection_param_descr());
-        });
+            let prev_value = match mount_type {
+                MountType::Simulator => config.borrow().mount_simulator_addr(),
+                MountType::Ioptron => config.borrow().mount_ioptron_device()
+            }.unwrap_or("".into());
+            curs.call_on_name(
+                names::MOUNT_CONNECTION, |v: &mut EditView| { v.set_content(prev_value) }
+            ).unwrap();
+        }));
     let rb_group2 = rb_group.clone();
 
     Dialog::around(
         LinearLayout::vertical()
-            .child(rb_group.button(MountType::Simulator, "Simulator"))
+            .child(rb_group.button(MountType::Simulator, "Simulator").selected())
             .child(rb_group.button(MountType::Ioptron, "iOptron"))
             .child(DummyView{})
             .child(param_descr)
             .child(EditView::new()
-                .on_submit(cclone!([tui, mount], move |curs, s| {
-                    upgrade!(tui, mount);
-                    on_connect_to_mount(curs, &tui, &mount, *rb_group.selection(), s);
+                .content(config.upgrade().unwrap().borrow().mount_simulator_addr().unwrap_or("".into()))
+                .on_submit(cclone!([tui, mount, config], move |curs, s| {
+                    upgrade!(tui, mount, config);
+                    on_connect_to_mount(curs, &tui, &mount, &config, *rb_group.selection(), s);
                 }))
                 .with_name(names::MOUNT_CONNECTION)
                 .fixed_width(20)
             )
     )
-    .button("OK", cclone!([tui, mount], move |curs| {
-        upgrade!(tui, mount);
+    .button("OK", cclone!([tui, mount, config], move |curs| {
+        upgrade!(tui, mount, config);
         let connection_param = curs.call_on_name(
             names::MOUNT_CONNECTION, |v: &mut EditView| { v.get_content() }
         ).unwrap();
-        on_connect_to_mount(curs, &tui, &mount, *rb_group2.selection(), &connection_param);
+        on_connect_to_mount(curs, &tui, &mount, &config, *rb_group2.selection(), &connection_param);
     }))
 
     .button("Cancel",crate::cclone!([tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
@@ -102,6 +111,7 @@ fn on_connect_to_mount(
     curs: &mut cursive::Cursive,
     tui: &Rc<RefCell<Option<TuiData>>>,
     mount: &Rc<RefCell<Option<mount::MountWrapper>>>,
+    config: &Rc<RefCell<Configuration>>,
     mount_type: MountType,
     connection_param: &str
 ) {
@@ -115,6 +125,10 @@ fn on_connect_to_mount(
             log::info!("connected to {}", m.get_info());
             tui!(tui).text_content.mount_name.set_content(m.get_info());
             *mount.borrow_mut() = Some(mount::MountWrapper::new(m));
+            match mount_type {
+                MountType::Simulator => config.borrow_mut().set_mount_simulator_addr(connection_param),
+                MountType::Ioptron => config.borrow_mut().set_mount_ioptron_device(connection_param)
+            }
             close_dialog(curs, tui);
         },
         Err(e) => {

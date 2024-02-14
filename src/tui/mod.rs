@@ -158,9 +158,14 @@ pub fn init(state: &mut ProgramState) {
         }
     }));
 
-    curs.add_global_callback('d', cclone!([@weak (state.tui) as tui, (state.data_receiver.connection()) as connection], move |curs| {
-        show_dialog!(data_source_dialog::dialog, curs, tui, connection.clone());
-    }));
+    curs.add_global_callback('d', cclone!([
+        @weak (state.tui) as tui,
+        (state.data_receiver.connection()) as connection,
+        @weak (state.config) as config
+        ], move |curs| {
+            show_dialog!(data_source_dialog::dialog, curs, tui, connection.clone(), config.clone());
+        }
+    ));
 
     curs.add_global_callback('m', cclone!([
         @weak (state.tui) as tui,

@@ -18,6 +18,7 @@
 
 use crate::{
     cclone,
+    config::Configuration,
     data_receiver,
     tui::{
         close_dialog,
@@ -42,27 +43,29 @@ use std::{cell::RefCell, rc::{Rc, Weak}};
 
 pub fn dialog(
     tui: Weak<RefCell<Option<TuiData>>>,
-    connection: data_receiver::Connection
+    connection: data_receiver::Connection,
+    config: Weak<RefCell<Configuration>>
 ) -> impl View {
     Dialog::around(
         LinearLayout::horizontal()
             .child(TextView::new("Server address:"))
             .child(EditView::new()
-                .on_submit(cclone!([tui, connection], move |curs, s| {
-                    upgrade!(tui);
-                    on_connect_to_data_source(curs, &tui, connection.clone(), s);
+                .content(config.upgrade().unwrap().borrow().data_source_addr().unwrap_or("".into()))
+                .on_submit(cclone!([tui, connection, config], move |curs, s| {
+                    upgrade!(tui, config);
+                    on_connect_to_data_source(curs, &tui, connection.clone(), &config, s);
                 }))
 
                 .with_name(names::SERVER_ADDR)
                 .fixed_width(20)
         )
     )
-    .button("OK", cclone!([tui, connection], move |curs| {
-        upgrade!(tui);
+    .button("OK", cclone!([tui, connection, config], move |curs| {
+        upgrade!(tui, config);
         let server_address = curs.call_on_name(
             names::SERVER_ADDR, |v: &mut EditView| { v.get_content() }
         ).unwrap();
-        on_connect_to_data_source(curs, &tui, connection.clone(), &server_address);
+        on_connect_to_data_source(curs, &tui, connection.clone(), &config, &server_address);
     }))
     .button("Cancel", cclone!([tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
     .title("Connect to data source")
@@ -74,11 +77,13 @@ fn on_connect_to_data_source(
     curs: &mut cursive::Cursive,
     tui: &Rc<RefCell<Option<TuiData>>>,
     connection: data_receiver::Connection,
+    config: &Rc<RefCell<Configuration>>,
     server_addr: &str
 ) {
     match connection.connect(server_addr) {
         Ok(()) => {
             log::info!("connected to data source {}", server_addr);
+            config.borrow_mut().set_data_source_addr(server_addr);
             close_dialog(curs, tui);
         },
 
