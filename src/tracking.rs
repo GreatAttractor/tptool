@@ -2,7 +2,7 @@ use cgmath::{Basis3, Deg, EuclideanSpace, InnerSpace, Point3, Rad, Rotation, Rot
 use crate::{data, data::{as_deg, as_deg_per_s, deg, deg_per_s, time, MountSpeed}, mount, mount::{Axis, Mount}};
 use pasts::notify::Notify;
 use pointing_utils::{cgmath, uom};
-use std::{cell::RefCell, error::Error, pin::Pin, rc::Rc, task::{Context, Poll, Waker}};
+use std::{cell::RefCell, error::Error, pin::Pin, rc::{Rc, Weak}, task::{Context, Poll, Waker}};
 use uom::si::{angle, f64};
 
 // TODO: convert to const `angular_velocity::degree_per_second` once supported
@@ -13,23 +13,24 @@ const TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500
 
 pub type AngSpeed = f64::AngularVelocity;
 
+#[derive(Clone)]
 pub struct TrackingController {
-    state: Rc<RefCell<State>>,
+    state: Weak<RefCell<State>>,
 }
 
 impl TrackingController {
     pub fn start(&self) {
         log::info!("start tracking");
-        self.state.borrow_mut().timer = Some(data::Timer::new(0, TIMER_INTERVAL));
+        self.state.upgrade().unwrap().borrow_mut().timer = Some(data::Timer::new(0, TIMER_INTERVAL));
     }
 
     pub fn stop(&self) {
         log::info!("stop tracking");
-        self.state.borrow_mut().stop_tracking();
+        self.state.upgrade().unwrap().borrow_mut().stop_tracking();
     }
 
     pub fn is_active(&self) -> bool {
-        self.state.borrow().timer.is_some()
+        self.state.upgrade().unwrap().borrow().timer.is_some()
     }
 }
 
@@ -153,7 +154,7 @@ impl Tracking {
     }
 
     pub fn controller(&self) -> TrackingController {
-        TrackingController{ state: Rc::clone(&self.state) }
+        TrackingController{ state: Rc::downgrade(&self.state) }
     }
 
     pub fn is_active(&self) -> bool {

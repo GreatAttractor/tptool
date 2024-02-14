@@ -21,7 +21,7 @@ mod mount_dialog;
 mod ref_pos_dialog;
 mod zero_pos_dialog;
 
-use crate::{data::{ProgramState, WeakWrapper}, mount::Mount};
+use crate::{cclone, data::{ProgramState, WeakWrapper}, mount::Mount, upgrade};
 use cursive::{
     align::HAlign,
     reexports::enumset,
@@ -137,61 +137,59 @@ pub fn init(state: &mut ProgramState) {
 
 	curs.add_global_callback('q', |c| { c.quit(); });
 
-    let mount = Rc::downgrade(&state.mount);
-    let tracking = state.tracking.controller();
-    curs.add_global_callback('s', move |_| {
-        let mount = mount.upgrade().unwrap();
-        let mut mount = mount.borrow_mut();
-        if let Some(mount) = mount.as_mut() {
-            if let Err(e) = mount.stop() {
-                log::error!("error stopping the mount: {}", e);
+    curs.add_global_callback('s', cclone!([@weak (state.mount) as mount, (state.tracking.controller()) as tracking],
+        move |_| {
+            let mount = mount.upgrade().unwrap();
+            let mut mount = mount.borrow_mut();
+            if let Some(mount) = mount.as_mut() {
+                if let Err(e) = mount.stop() {
+                    log::error!("error stopping the mount: {}", e);
+                }
+                tracking.stop();
             }
-            tracking.stop();
         }
-    });
+    ));
 
-    let tracking = state.tracking.controller();
-    curs.add_global_callback('t', move |_| {
+    curs.add_global_callback('t', cclone!([(state.tracking.controller()) as tracking], move |_| {
         if tracking.is_active() {
             tracking.stop();
         } else {
             tracking.start();
         }
-    });
+    }));
 
-    // TODO: use an automatically-downgrading macro here and elsewhere; to avoid cycles, never give Rc clones to callback closures
-    let tui = Rc::clone(&state.tui);
-    let connection = state.data_receiver.connection();
-    curs.add_global_callback('d', move |curs| {
+    curs.add_global_callback('d', cclone!([@weak (state.tui) as tui, (state.data_receiver.connection()) as connection], move |curs| {
+        upgrade!(tui);
         show_dialog!(data_source_dialog::dialog, curs, tui, connection.clone());
-    });
+    }));
 
-    let tui = Rc::clone(&state.tui);
-    let mount = Rc::clone(&state.mount);
-    let config = Rc::clone(&state.config);
-    curs.add_global_callback('m', move |curs| {
-        show_dialog!(mount_dialog::dialog, curs, tui, &mount, &config);
-    });
+    curs.add_global_callback('m', cclone!([
+        @weak (state.tui) as tui,
+        @weak (state.mount) as mount,
+        @weak (state.config) as config
+        ], move |curs| {
+            upgrade!(tui, mount, config);
+            show_dialog!(mount_dialog::dialog, curs, tui, &mount, &config);
+        }
+    ));
 
-    let tui = Rc::clone(&state.tui);
-    let mount = Rc::clone(&state.mount);
-    curs.add_global_callback('r', move |curs| {
+    curs.add_global_callback('r', cclone!([@weak (state.tui) as tui, @weak (state.mount) as mount], move |curs| {
+        upgrade!(tui, mount);
         if mount.borrow().is_none() {
             msg_box(curs, "Not connected to a mount.", "Error");
         } else {
             show_dialog!(ref_pos_dialog::dialog, curs, tui, &mount);
         }
-    });
+    }));
 
-    let tui = Rc::clone(&state.tui);
-    let mount = Rc::clone(&state.mount);
-    curs.add_global_callback('z', move |curs| {
+    curs.add_global_callback('z', cclone!([@weak (state.tui) as tui, @weak (state.mount) as mount], move |curs| {
+        upgrade!(tui, mount);
         if mount.borrow().is_none() {
             msg_box(curs, "Not connected to a mount.", "Error");
         } else {
             show_dialog!(zero_pos_dialog::dialog, curs, tui, &mount);
         }
-    });
+    }));
 
     let main_theme = create_main_theme(curs.current_theme());
     curs.set_theme(main_theme);
@@ -338,20 +336,29 @@ fn create_main_theme(base: &Theme) -> Theme {
 #[macro_export]
 macro_rules! cclone {
     ([$($tt:tt)*], $expr:expr) => {{
-        crate::cclone!($($tt)*);
+        cclone!($($tt)*);
 
         $expr
     }};
 
-    ($(,)? @weak $ident:ident $($tt:tt)*) => {
-        let $ident = Rc::downgrade(&$ident);
-        crate::cclone!($($tt)*);
+    ($(,)? @weak ($expr:expr) as $ident:ident $($tt:tt)*) => {
+        let $ident = Rc::downgrade(&$expr);
+        cclone!($($tt)*);
     };
 
+    ($(,)? @weak $ident:ident $($tt:tt)*) => {
+        let $ident = Rc::downgrade(&$ident);
+        cclone!($($tt)*);
+    };
+
+    ($(,)? ($expr:expr) as $ident:ident $($tt:tt)*) => {
+        let $ident = ::std::clone::Clone::clone(&$expr);
+        cclone!($($tt)*);
+    };
 
     ($(,)? $ident:ident $($tt:tt)*) => {
         let $ident = ::std::clone::Clone::clone(&$ident);
-        crate::cclone!($($tt)*);
+        cclone!($($tt)*);
     };
 
     ($(,)?) => {};
