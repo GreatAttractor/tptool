@@ -35,11 +35,11 @@ use cursive::{
     },
     With
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::{Rc, Weak}};
 
 pub fn dialog(
-    tui: &Rc<RefCell<Option<TuiData>>>,
-    mount: &Rc<RefCell<Option<mount::MountWrapper>>>
+    tui: Weak<RefCell<Option<TuiData>>>,
+    mount: Weak<RefCell<Option<mount::MountWrapper>>>
 ) -> impl View {
     Dialog::around(
         LinearLayout::vertical()
@@ -62,7 +62,7 @@ pub fn dialog(
                     .child(TextView::new("°"))
             )
     )
-    .button("OK", cclone!([@weak tui, @weak mount], move |curs| {
+    .button("OK", cclone!([tui, mount], move |curs| {
         upgrade!(tui, mount);
 
         let ref_az = curs.call_on_name( names::REF_POS_AZ, |v: &mut EditView| { v.get_content() }).unwrap();
@@ -86,7 +86,7 @@ pub fn dialog(
 
         if let Some(err) = err { msg_box(curs, &format!("Invalid value: {}.", err), "Error"); }
     }))
-    .button("Cancel", crate::cclone!([@weak tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
+    .button("Cancel", crate::cclone!([tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
     .title("Set current reference position")
     .wrap_with(CircularFocus::new)
     .wrap_tab()

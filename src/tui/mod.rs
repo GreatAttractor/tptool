@@ -64,15 +64,15 @@ macro_rules! tui_mut {
 
 macro_rules! show_dialog {
     ($dialog_func:expr, $curs:expr, $tui:expr, $($dialog_params:expr),*) => {
-        if tui!($tui).showing_dialog { return; }
-        tui_mut!($tui).showing_dialog = true;
+        if tui!($tui.upgrade().unwrap()).showing_dialog { return; }
+        tui_mut!($tui.upgrade().unwrap()).showing_dialog = true;
         let dialog_theme = create_dialog_theme($curs);
 
         $curs.screen_mut().add_layer_at(
             Position::new(Offset::Center, Offset::Center),
             ThemedView::new(
                 dialog_theme.clone(),
-                $dialog_func(&$tui, $($dialog_params),*)
+                $dialog_func($tui.clone(), $($dialog_params),*)
             )
         );
     };
@@ -159,7 +159,6 @@ pub fn init(state: &mut ProgramState) {
     }));
 
     curs.add_global_callback('d', cclone!([@weak (state.tui) as tui, (state.data_receiver.connection()) as connection], move |curs| {
-        upgrade!(tui);
         show_dialog!(data_source_dialog::dialog, curs, tui, connection.clone());
     }));
 
@@ -168,26 +167,23 @@ pub fn init(state: &mut ProgramState) {
         @weak (state.mount) as mount,
         @weak (state.config) as config
         ], move |curs| {
-            upgrade!(tui, mount, config);
-            show_dialog!(mount_dialog::dialog, curs, tui, &mount, &config);
+            show_dialog!(mount_dialog::dialog, curs, tui, mount.clone(), config.clone());
         }
     ));
 
     curs.add_global_callback('r', cclone!([@weak (state.tui) as tui, @weak (state.mount) as mount], move |curs| {
-        upgrade!(tui, mount);
-        if mount.borrow().is_none() {
+        if mount.upgrade().unwrap().borrow().is_none() {
             msg_box(curs, "Not connected to a mount.", "Error");
         } else {
-            show_dialog!(ref_pos_dialog::dialog, curs, tui, &mount);
+            show_dialog!(ref_pos_dialog::dialog, curs, tui.clone(), mount.clone());
         }
     }));
 
     curs.add_global_callback('z', cclone!([@weak (state.tui) as tui, @weak (state.mount) as mount], move |curs| {
-        upgrade!(tui, mount);
-        if mount.borrow().is_none() {
+        if mount.upgrade().unwrap().borrow().is_none() {
             msg_box(curs, "Not connected to a mount.", "Error");
         } else {
-            show_dialog!(zero_pos_dialog::dialog, curs, tui, &mount);
+            show_dialog!(zero_pos_dialog::dialog, curs, tui.clone(), mount.clone());
         }
     }));
 

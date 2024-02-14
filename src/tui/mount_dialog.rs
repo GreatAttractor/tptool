@@ -38,7 +38,7 @@ use cursive::{
     },
     With
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::{Rc, Weak}};
 
 #[derive(Copy, Clone)]
 enum MountType {
@@ -56,9 +56,9 @@ impl MountType {
 }
 
 pub fn dialog(
-    tui: &Rc<RefCell<Option<TuiData>>>,
-    mount: &Rc<RefCell<Option<mount::MountWrapper>>>,
-    config: &Rc<RefCell<Configuration>>
+    tui: Weak<RefCell<Option<TuiData>>>,
+    mount: Weak<RefCell<Option<mount::MountWrapper>>>,
+    config: Weak<RefCell<Configuration>>
 ) -> impl View {
     let param_descr_content = TextContent::new("");
     let param_descr = TextView::new_with_content(param_descr_content.clone());
@@ -76,7 +76,7 @@ pub fn dialog(
             .child(DummyView{})
             .child(param_descr)
             .child(EditView::new()
-                .on_submit(cclone!([@weak tui, @weak mount], move |curs, s| {
+                .on_submit(cclone!([tui, mount], move |curs, s| {
                     upgrade!(tui, mount);
                     on_connect_to_mount(curs, &tui, &mount, *rb_group.selection(), s);
                 }))
@@ -84,7 +84,7 @@ pub fn dialog(
                 .fixed_width(20)
             )
     )
-    .button("OK", cclone!([@weak tui, @weak mount], move |curs| {
+    .button("OK", cclone!([tui, mount], move |curs| {
         upgrade!(tui, mount);
         let connection_param = curs.call_on_name(
             names::MOUNT_CONNECTION, |v: &mut EditView| { v.get_content() }
@@ -92,7 +92,7 @@ pub fn dialog(
         on_connect_to_mount(curs, &tui, &mount, *rb_group2.selection(), &connection_param);
     }))
 
-    .button("Cancel",crate::cclone!([@weak tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
+    .button("Cancel",crate::cclone!([tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
     .title("Connect to mount")
     .wrap_with(CircularFocus::new)
     .wrap_tab()

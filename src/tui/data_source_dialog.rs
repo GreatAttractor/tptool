@@ -38,17 +38,17 @@ use cursive::{
     },
     With
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::{Rc, Weak}};
 
 pub fn dialog(
-    tui: &Rc<RefCell<Option<TuiData>>>,
+    tui: Weak<RefCell<Option<TuiData>>>,
     connection: data_receiver::Connection
 ) -> impl View {
     Dialog::around(
         LinearLayout::horizontal()
             .child(TextView::new("Server address:"))
             .child(EditView::new()
-                .on_submit(cclone!([@weak tui, connection], move |curs, s| {
+                .on_submit(cclone!([tui, connection], move |curs, s| {
                     upgrade!(tui);
                     on_connect_to_data_source(curs, &tui, connection.clone(), s);
                 }))
@@ -57,14 +57,14 @@ pub fn dialog(
                 .fixed_width(20)
         )
     )
-    .button("OK", cclone!([@weak tui, connection], move |curs| {
+    .button("OK", cclone!([tui, connection], move |curs| {
         upgrade!(tui);
         let server_address = curs.call_on_name(
             names::SERVER_ADDR, |v: &mut EditView| { v.get_content() }
         ).unwrap();
         on_connect_to_data_source(curs, &tui, connection.clone(), &server_address);
     }))
-    .button("Cancel", cclone!([@weak tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
+    .button("Cancel", cclone!([tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
     .title("Connect to data source")
     .wrap_with(CircularFocus::new)
     .wrap_tab()

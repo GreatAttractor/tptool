@@ -35,18 +35,18 @@ use cursive::{
     },
     With
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::{Rc, Weak}};
 
 pub fn dialog(
-    tui: &Rc<RefCell<Option<TuiData>>>,
-    mount: &Rc<RefCell<Option<mount::MountWrapper>>>
+    tui: Weak<RefCell<Option<TuiData>>>,
+    mount: Weak<RefCell<Option<mount::MountWrapper>>>
 ) -> impl View {
     Dialog::around(
         LinearLayout::vertical()
             // TODO: give (and implement) the option of "go to zero position"
             .child(TextView::new("Mark the current mount position as the zero (home) position?"))
     )
-    .button("OK", cclone!([@weak tui, @weak mount], move |curs| {
+    .button("OK", cclone!([tui, mount], move |curs| {
         upgrade!(tui, mount);
         let mut mount = mount.borrow_mut();
         if let Err(e) = mount.as_mut().unwrap().set_zero_position() {
@@ -55,7 +55,7 @@ pub fn dialog(
             close_dialog(curs, &tui)
         }
     }))
-    .button("Cancel", crate::cclone!([@weak tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
+    .button("Cancel", crate::cclone!([tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
     .title("Zero position")
     .wrap_with(CircularFocus::new)
     .wrap_tab()
