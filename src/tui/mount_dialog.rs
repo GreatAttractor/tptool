@@ -60,7 +60,7 @@ pub fn dialog(
     mount: Weak<RefCell<Option<mount::MountWrapper>>>,
     config: Weak<RefCell<Configuration>>
 ) -> impl View {
-    let param_descr_content = TextContent::new("");
+    let param_descr_content = TextContent::new(MountType::Simulator.connection_param_descr());
     let param_descr = TextView::new_with_content(param_descr_content.clone());
 
     let mut rb_group = RadioGroup::new()
