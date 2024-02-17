@@ -62,8 +62,6 @@ impl Connection {
     }
 }
 
-impl data::WeakWrapper for Connection {}
-
 impl Notify for DataReceiver {
     type Event = Result<String, std::io::Error>;
 

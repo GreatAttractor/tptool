@@ -22,6 +22,7 @@ use crate::{
     data_receiver,
     tui::{
         close_dialog,
+        get_edit_view_str,
         msg_box,
         names,
         TuiData
@@ -62,9 +63,7 @@ pub fn dialog(
     )
     .button("OK", cclone!([tui, connection, config], move |curs| {
         upgrade!(tui, config);
-        let server_address = curs.call_on_name(
-            names::SERVER_ADDR, |v: &mut EditView| { v.get_content() }
-        ).unwrap();
+        let server_address = get_edit_view_str(curs, names::SERVER_ADDR);
         on_connect_to_data_source(curs, &tui, connection.clone(), &config, &server_address);
     }))
     .button("Cancel", cclone!([tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))

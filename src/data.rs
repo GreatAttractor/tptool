@@ -26,9 +26,9 @@ use crate::{
     tracking::Tracking,
     tui::TuiData
 };
-use pointing_utils::{cgmath, uom};
+use pointing_utils::{cgmath, GeoPos, to_global_unit, uom};
 use std::{cell::{Ref, RefCell}, future::Future, marker::Unpin, pin::Pin, rc::Rc, task::{Context, Poll}};
-use uom::{si::f64, si::{angle, angular_velocity, time}};
+use uom::{si::f64, si::{angle, angular_velocity, length, time}};
 use pasts::notify::Notify;
 
 pub mod timers {
@@ -37,8 +37,30 @@ pub mod timers {
     pub const MAIN: TimerId = 1;
 }
 
-/// Can be cloned without introducing reference cycles.
-pub trait WeakWrapper: Clone {}
+pub struct RefPositionPreset {
+    pub name: String,
+    pub azimuth: f64::Angle,
+    pub altitude: f64::Angle
+}
+
+impl std::fmt::Display for RefPositionPreset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{};{};{}", as_deg(self.azimuth), as_deg(self.altitude), self.name)
+    }
+}
+
+impl std::str::FromStr for RefPositionPreset {
+    type Err = std::num::ParseFloatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.splitn(3, ';').collect();
+        Ok(RefPositionPreset{
+            azimuth: deg(parts[0].parse::<f64>()?),
+            altitude: deg(parts[1].parse::<f64>()?),
+            name: parts[2].into()
+        })
+    }
+}
 
 pub struct Slewing {
     // values from [-1.0, 1.0]
@@ -181,4 +203,31 @@ pub fn spherical_to_unit(azimuth: f64::Angle, altitude: f64::Angle) -> Point3<f6
     let dir = Basis3::from_axis_angle(UP, -Rad(azimuth.get::<angle::radian>())).rotate_vector(dir);
 
     Point3::from_vec(dir)
+}
+
+fn unit_tangent_to_great_circle_between_points_on_unit_sphere(p1: Point3<f64>, p2: Point3<f64>) -> Vector3<f64> {
+    let a_unit = p1.to_vec().cross(p2.to_vec()).normalize();
+    a_unit.cross(p1.to_vec())
+}
+
+pub fn calc_az_alt_between_points(p1: &GeoPos, p2: &GeoPos) -> (f64::Angle, f64::Angle) {
+    // -------- azimuth --------
+    const NORTH_POLE: Point3<f64> = Point3{ x: 0.0, y: 0.0, z: 1.0 };
+    let p1_unit_0_alt = to_global_unit(&p1.lat_lon).0;
+    let p2_unit_0_alt = to_global_unit(&p2.lat_lon).0;
+    let to_north_pole = unit_tangent_to_great_circle_between_points_on_unit_sphere(p1_unit_0_alt, NORTH_POLE);
+    let to_p2_0_alt = unit_tangent_to_great_circle_between_points_on_unit_sphere(p1_unit_0_alt, p2_unit_0_alt);
+
+    let cross_p = to_north_pole.cross(to_p2_0_alt);
+    let mut azimuth = Rad(to_north_pole.dot(to_p2_0_alt).acos());
+
+    if cross_p.dot(p1_unit_0_alt.to_vec()) > 0.0 { azimuth = -azimuth; }
+
+    // -------- altitude --------
+    let ang_dist_cos = p1_unit_0_alt.to_vec().dot(p2_unit_0_alt.to_vec());
+    let ang_dist_sin = (1.0 - ang_dist_cos.powi(2)).sqrt();
+    let R = f64::Length::new::<length::meter>(pointing_utils::EARTH_RADIUS_M);
+    let altitude = Rad(((ang_dist_cos - Into::<f64>::into((R + p1.elevation) / (R + p2.elevation))) / ang_dist_sin).atan());
+
+    (deg(Deg::from(azimuth).0), deg(Deg::from(altitude).0))
 }

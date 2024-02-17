@@ -21,7 +21,7 @@ use crate::{
     config::Configuration,
     mount,
     tui,
-    tui::{close_dialog, msg_box, names, TuiData},
+    tui::{close_dialog, get_edit_view_str, msg_box, names, set_edit_view_str, TuiData},
     upgrade
 };
 use cursive::{
@@ -71,9 +71,7 @@ pub fn dialog(
                 MountType::Simulator => config.borrow().mount_simulator_addr(),
                 MountType::Ioptron => config.borrow().mount_ioptron_device()
             }.unwrap_or("".into());
-            curs.call_on_name(
-                names::MOUNT_CONNECTION, |v: &mut EditView| { v.set_content(prev_value) }
-            ).unwrap();
+            set_edit_view_str(curs, names::MOUNT_CONNECTION, prev_value);
         }));
     let rb_group2 = rb_group.clone();
 
@@ -95,9 +93,7 @@ pub fn dialog(
     )
     .button("OK", cclone!([tui, mount, config], move |curs| {
         upgrade!(tui, mount, config);
-        let connection_param = curs.call_on_name(
-            names::MOUNT_CONNECTION, |v: &mut EditView| { v.get_content() }
-        ).unwrap();
+        let connection_param = get_edit_view_str(curs, names::MOUNT_CONNECTION);
         on_connect_to_mount(curs, &tui, &mount, &config, *rb_group2.selection(), &connection_param);
     }))
 

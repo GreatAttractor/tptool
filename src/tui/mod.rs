@@ -19,9 +19,10 @@
 mod data_source_dialog;
 mod mount_dialog;
 mod ref_pos_dialog;
+mod simple_dialog;
 mod zero_pos_dialog;
 
-use crate::{cclone, data::{ProgramState, WeakWrapper}, mount::Mount, upgrade};
+use crate::{cclone, data::ProgramState, mount::Mount, upgrade};
 use cursive::{
     align::HAlign,
     reexports::enumset,
@@ -34,10 +35,12 @@ use cursive::{
     views::{
         Dialog,
         DummyView,
+        EditView,
         FixedLayout,
         LinearLayout,
         OnLayoutView,
         Panel,
+        SelectView,
         TextContent,
         TextView,
         ThemedView
@@ -51,6 +54,8 @@ mod names {
     pub const MOUNT_CONNECTION: &str = "mount_connection";
     pub const REF_POS_AZ: &str = "ref_pos_azimuth";
     pub const REF_POS_ALT: &str = "ref_pos_altitude";
+    pub const REF_POS_SEL_PRESET: &str = "ref_pos_selected_preset";
+    pub const SIMPLE_DIALOG_TEXT: &str = "simple_dialog_text";
 }
 
 #[macro_export]
@@ -62,7 +67,7 @@ macro_rules! tui_mut {
     ($tui_rc:expr) => { $tui_rc.borrow_mut().as_mut().unwrap() };
 }
 
-macro_rules! show_dialog {
+macro_rules! show_dlg_on_global_callback {
     ($dialog_func:expr, $curs:expr, $tui:expr, $($dialog_params:expr),*) => {
         if tui!($tui.upgrade().unwrap()).showing_dialog { return; }
         tui_mut!($tui.upgrade().unwrap()).showing_dialog = true;
@@ -132,6 +137,18 @@ impl CommandBarBuilder {
     }
 }
 
+pub fn get_edit_view_str(curs: &mut cursive::Cursive, name: &str) -> Rc<String> {
+    curs.call_on_name(name, |v: &mut EditView| { v.get_content() }).unwrap()
+}
+
+pub fn set_edit_view_str<S: Into<String>>(curs: &mut cursive::Cursive, name: &str, value: S) {
+    curs.call_on_name(name, |v: &mut EditView| { v.set_content(value) });
+}
+
+pub fn get_select_view_idx(curs: &mut cursive::Cursive, name: &str) -> usize {
+    curs.call_on_name(name, |v: &mut SelectView<usize>| *v.selection().unwrap()).unwrap()
+}
+
 pub fn init(state: &mut ProgramState) {
     let curs = &mut state.cursive_stepper.curs;
 
@@ -163,7 +180,7 @@ pub fn init(state: &mut ProgramState) {
         (state.data_receiver.connection()) as connection,
         @weak (state.config) as config
         ], move |curs| {
-            show_dialog!(data_source_dialog::dialog, curs, tui, connection.clone(), config.clone());
+            show_dlg_on_global_callback!(data_source_dialog::dialog, curs, tui, connection.clone(), config.clone());
         }
     ));
 
@@ -172,23 +189,28 @@ pub fn init(state: &mut ProgramState) {
         @weak (state.mount) as mount,
         @weak (state.config) as config
         ], move |curs| {
-            show_dialog!(mount_dialog::dialog, curs, tui, mount.clone(), config.clone());
+            show_dlg_on_global_callback!(mount_dialog::dialog, curs, tui, mount.clone(), config.clone());
         }
     ));
 
-    curs.add_global_callback('r', cclone!([@weak (state.tui) as tui, @weak (state.mount) as mount], move |curs| {
-        if mount.upgrade().unwrap().borrow().is_none() {
-            msg_box(curs, "Not connected to a mount.", "Error");
-        } else {
-            show_dialog!(ref_pos_dialog::dialog, curs, tui.clone(), mount.clone());
+    curs.add_global_callback('r', cclone!([
+        @weak (state.tui) as tui,
+        @weak (state.mount) as mount,
+        @weak (state.config) as config
+        ], move |curs| {
+            if mount.upgrade().unwrap().borrow().is_none() {
+                msg_box(curs, "Not connected to a mount.", "Error");
+            } else {
+                show_dlg_on_global_callback!(ref_pos_dialog::dialog, curs, tui.clone(), mount.clone(), config.clone());
+            }
         }
-    }));
+    ));
 
     curs.add_global_callback('z', cclone!([@weak (state.tui) as tui, @weak (state.mount) as mount], move |curs| {
         if mount.upgrade().unwrap().borrow().is_none() {
             msg_box(curs, "Not connected to a mount.", "Error");
         } else {
-            show_dialog!(zero_pos_dialog::dialog, curs, tui.clone(), mount.clone());
+            show_dlg_on_global_callback!(zero_pos_dialog::dialog, curs, tui.clone(), mount.clone());
         }
     }));
 
@@ -403,7 +425,7 @@ macro_rules! upgrade {
     ($(,)?) => {};
 }
 
-fn msg_box(curs: &mut cursive::Cursive, text: &str, title: &str) {
+pub fn msg_box(curs: &mut cursive::Cursive, text: &str, title: &str) {
     curs.add_layer(ThemedView::new(
         create_dialog_theme(curs),
         Dialog::text(text).title(title).dismiss_button("OK")
@@ -418,5 +440,5 @@ fn create_dialog_theme(curs: &cursive::Cursive) -> theme::Theme {
 
 fn close_dialog(curs: &mut cursive::Cursive, tui: &Rc<RefCell<Option<TuiData>>>) {
     curs.pop_layer();
-    tui_mut!(tui).showing_dialog = false;
+    tui_mut!(tui).showing_dialog = false; // TODO: make sure only global-callback triggered dialogs call this
 }
