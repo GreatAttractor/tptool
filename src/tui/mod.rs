@@ -19,19 +19,22 @@
 mod data_source_dialog;
 mod mount_dialog;
 mod ref_pos_dialog;
+mod shadow_view;
 mod simple_dialog;
 mod zero_pos_dialog;
 
 use crate::{cclone, data::ProgramState, mount::Mount, upgrade};
 use cursive::{
     align::HAlign,
+    CursiveRunnable,
+    CursiveRunner,
     reexports::enumset,
     Rect,
     theme,
     theme::Theme,
     Vec2,
     View,
-    view::{Offset, Position, Resizable},
+    view::{Nameable, Offset, Position, Resizable},
     views::{
         Dialog,
         DummyView,
@@ -40,12 +43,15 @@ use cursive::{
         LinearLayout,
         OnLayoutView,
         Panel,
+        ResizedView,
         SelectView,
         TextContent,
         TextView,
         ThemedView
     },
+    With
 };
+use shadow_view::WithShadow;
 use std::{cell::RefCell, rc::Rc};
 
 /// Unique Cursive view names.
@@ -73,12 +79,12 @@ macro_rules! show_dlg_on_global_callback {
         tui_mut!($tui.upgrade().unwrap()).showing_dialog = true;
         let dialog_theme = create_dialog_theme($curs);
 
-        $curs.screen_mut().add_layer_at(
+        $curs.screen_mut().add_transparent_layer_at(
             Position::new(Offset::Center, Offset::Center),
-            ThemedView::new(
+            WithShadow::new(ThemedView::new(
                 dialog_theme.clone(),
                 $dialog_func($tui.clone(), $($dialog_params),*)
-            )
+            ))
         );
     };
 }
@@ -426,10 +432,11 @@ macro_rules! upgrade {
 }
 
 pub fn msg_box(curs: &mut cursive::Cursive, text: &str, title: &str) {
-    curs.add_layer(ThemedView::new(
-        create_dialog_theme(curs),
+    let dt = create_dialog_theme(curs);
+    curs.screen_mut().add_transparent_layer(WithShadow::new(ThemedView::new(
+        dt,
         Dialog::text(text).title(title).dismiss_button("OK")
-    ));
+    )));
 }
 
 fn create_dialog_theme(curs: &cursive::Cursive) -> theme::Theme {

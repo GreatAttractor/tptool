@@ -16,7 +16,7 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use crate::{cclone, mount::Mount, tui, upgrade};
+use crate::{cclone, mount::Mount, tui, tui::WithShadow, upgrade};
 use cursive::{
     align::HAlign,
     Cursive,
@@ -50,9 +50,9 @@ pub fn show<F: Fn(&mut Cursive, &str) + 'static>(
     on_accept: Rc<F>
 ) {
     let dialog_theme = tui::create_dialog_theme(curs);
-    curs.screen_mut().add_layer_at(
+    curs.screen_mut().add_transparent_layer_at(
         Position::new(Offset::Center, Offset::Center),
-        ThemedView::new(
+        WithShadow::new(ThemedView::new(
             dialog_theme,
             Dialog::around(
                 LinearLayout::horizontal()
@@ -73,6 +73,6 @@ pub fn show<F: Fn(&mut Cursive, &str) + 'static>(
                 curs.pop_layer();
             })
             .dismiss_button("Cancel")
-        )
+        ))
     );
 }

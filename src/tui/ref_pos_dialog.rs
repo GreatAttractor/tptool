@@ -31,7 +31,8 @@ use crate::{
         msg_box,
         names,
         set_edit_view_str,
-        TuiData
+        TuiData,
+        WithShadow
     },
     upgrade
 };
@@ -153,15 +154,16 @@ fn on_load_preset(curs: &mut cursive::Cursive, preset_name: TextContent, config:
         sel_view.with_name(names::REF_POS_SEL_PRESET)
     };
 
-    curs.add_layer(ThemedView::new(
-        create_dialog_theme(curs),
+    let dt = create_dialog_theme(curs);
+    curs.screen_mut().add_transparent_layer(WithShadow::new(ThemedView::new(
+        dt,
         Dialog::around(sel_view).title("Choose preset")
             .button("OK", cclone!([preset_name, config], move |curs| {
                 let idx = get_select_view_idx(curs, names::REF_POS_SEL_PRESET);
                 on_preset_chosen(curs, &preset_name, idx, config.clone());
             }))
             .dismiss_button("Cancel")
-    ));
+    )));
 }
 
 fn on_store_preset(curs: &mut cursive::Cursive, preset_name: TextContent, config: Weak<RefCell<Configuration>>) {
