@@ -135,8 +135,8 @@ fn on_preset_chosen(
 ) {
     upgrade!(config);
     let preset = &config.borrow().ref_pos_presets()[preset_idx];
-    set_edit_view_str(curs, names::REF_POS_AZ, format!("{:.2}", as_deg(preset.azimuth)));
-    set_edit_view_str(curs, names::REF_POS_ALT, format!("{:.2}", as_deg(preset.altitude)));
+    set_edit_view_str(curs, names::REF_POS_AZ, format!("{:.3}", as_deg(preset.azimuth)));
+    set_edit_view_str(curs, names::REF_POS_ALT, format!("{:.3}", as_deg(preset.altitude)));
     preset_name.set_content(preset.name.clone());
     curs.pop_layer();
 }
