@@ -61,7 +61,7 @@ fn on_main_timer(state: &mut ProgramState) {
 fn on_target_log(state: &mut ProgramState) {
     if let Some(target) = state.target.borrow().as_ref() {
         log::info!(
-            "target;dist;{};speed;{};altitude;{}",
+            "target-log;dist;{:.01};speed;{};altitude;{}",
             target.dist.get::<length::meter>(),
             target.speed.get::<velocity::meter_per_second>(),
             target.alt_above_gnd.get::<length::meter>()

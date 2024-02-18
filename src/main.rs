@@ -73,7 +73,9 @@ fn set_up_logging() {
     }));
 
     let tz_offset = chrono::Local::now().offset().clone();
-    let logfile = std::path::Path::new("tptool.log");
+    let logfile = dirs::data_dir().unwrap_or(std::path::Path::new("").to_path_buf())
+        .join(format!("tptool_{}.log", chrono::Local::now().format("%Y-%m-%d_%H%M%S")));
+
     println!("Logging to: {}", logfile.to_string_lossy());
     simplelog::WriteLogger::init(
         simplelog::LevelFilter::Info,
@@ -85,6 +87,6 @@ fn set_up_logging() {
             ))
             .add_filter_ignore_str("cursive_core")
             .build(),
-        std::fs::File::options().create(true).append(true).open(logfile).unwrap()
+        std::fs::File::create(logfile).unwrap()
     ).unwrap();
 }
