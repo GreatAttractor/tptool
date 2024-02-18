@@ -35,6 +35,7 @@ pub mod timers {
     use super::TimerId;
 
     pub const MAIN: TimerId = 1;
+    pub const TARGET_LOG: TimerId = 2;
 }
 
 pub struct RefPositionPreset {
@@ -93,6 +94,9 @@ pub fn as_deg_per_s(speed: f64::AngularVelocity) -> f64 {
 pub fn time(duration: std::time::Duration) -> f64::Time { f64::Time::new::<time::second>(duration.as_secs_f64()) }
 
 pub struct Target {
+    pub dist: f64::Length,
+    pub speed: f64::Velocity,
+    pub alt_above_gnd: f64::Length,
     pub azimuth: f64::Angle,
     pub altitude: f64::Angle,
     pub az_spd: f64::AngularVelocity,

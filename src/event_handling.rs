@@ -58,10 +58,22 @@ fn on_main_timer(state: &mut ProgramState) {
     }
 }
 
+fn on_target_log(state: &mut ProgramState) {
+    if let Some(target) = state.target.borrow().as_ref() {
+        log::info!(
+            "target;dist;{};speed;{};altitude;{}",
+            target.dist.get::<length::meter>(),
+            target.speed.get::<velocity::meter_per_second>(),
+            target.alt_above_gnd.get::<length::meter>()
+        );
+    }
+}
+
 fn on_timer(state: &mut ProgramState, idx_id: (usize, TimerId)) -> std::task::Poll<()> {
     let (_, id) = idx_id;
     match id {
         timers::MAIN => on_main_timer(state),
+        timers::TARGET_LOG => on_target_log(state),
         _ => ()
     }
 
@@ -192,10 +204,13 @@ fn on_data_received(state: &mut ProgramState, message: Result<String, std::io::E
     let ang_speed_el = v_up_down.z.signum() * radians(v_up_down.magnitude() / r_len);
 
     *state.target.borrow_mut() = Some(data::Target{
+        dist,
         azimuth,
+        alt_above_gnd: ti.altitude,
         altitude,
         az_spd: ang_speed_az,
         alt_spd: ang_speed_el,
+        speed: f64::Velocity::new::<velocity::meter_per_second>(ti.velocity.0.magnitude()),
         v_tangential
     });
 

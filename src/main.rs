@@ -30,6 +30,7 @@ use std::{cell::RefCell, future::Future, rc::Rc};
 const MOUNT_SERVER_PORT: u16 = 45501;
 const DATA_SOURCE_PORT: u16 = 45500;
 const MAIN_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
+const TARGET_LOG_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
 
 fn main() {
     set_up_logging();
@@ -52,7 +53,10 @@ fn main() {
         mount_spd: mount_spd.clone(),
         slewing: Default::default(),
         target: Rc::clone(&target),
-        timers: vec![data::Timer::new(data::timers::MAIN, MAIN_TIMER_INTERVAL)],
+        timers: vec![
+            data::Timer::new(data::timers::MAIN, MAIN_TIMER_INTERVAL),
+            data::Timer::new(data::timers::TARGET_LOG, TARGET_LOG_TIMER_INTERVAL)
+        ],
         tracking: tracking::Tracking::new(data::deg_per_s(5.0), mount, mount_spd, target),
         tui: Rc::new(RefCell::new(None)),
     };
@@ -72,7 +76,7 @@ fn set_up_logging() {
     let logfile = std::path::Path::new("tptool.log");
     println!("Logging to: {}", logfile.to_string_lossy());
     simplelog::WriteLogger::init(
-        simplelog::LevelFilter::Debug,
+        simplelog::LevelFilter::Info,
         simplelog::ConfigBuilder::new()
             .set_target_level(simplelog::LevelFilter::Error)
             .set_time_offset(time::UtcOffset::from_whole_seconds(tz_offset.local_minus_utc()).unwrap())
