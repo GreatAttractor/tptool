@@ -1,5 +1,10 @@
 use cgmath::{Basis3, Deg, EuclideanSpace, InnerSpace, Point3, Rad, Rotation, Rotation3, Vector3};
-use crate::{data, data::{as_deg, as_deg_per_s, deg, deg_per_s, time, MountSpeed}, mount, mount::{Axis, Mount}};
+use crate::{
+    data,
+    data::{angle_diff, as_deg, as_deg_per_s, deg, deg_per_s, time, MountSpeed},
+    mount,
+    mount::{Axis, Mount}
+};
 use pasts::notify::Notify;
 use pointing_utils::{cgmath, uom};
 use std::{cell::RefCell, error::Error, pin::Pin, rc::{Rc, Weak}, task::{Context, Poll, Waker}};
@@ -112,6 +117,9 @@ impl Tracking {
                 return Ok(());
             }
         };
+        // calling `MountWrapper::position` might have triggered the max travel exceeded callback and disabled tracking
+        if self.state.borrow().timer.is_none() { return Ok(()); }
+
         let az_delta;
         let alt_delta;
         let target_az_spd;
@@ -172,7 +180,6 @@ impl Tracking {
         if let Some(target) = t.as_ref() {
             let new_axis1_spd = target.az_spd + axis1_rel_spd * deg_per_s(ADJUSTMENT_SPD_DEG_PER_S);
             let new_axis2_spd = target.alt_spd + axis2_rel_spd * deg_per_s(ADJUSTMENT_SPD_DEG_PER_S);
-
             if let Err(e) = self.mount.borrow_mut().as_mut().unwrap().slew(new_axis1_spd, new_axis2_spd) {
                 log::error!("error when slewing: {}", e);
             }
@@ -279,45 +286,5 @@ impl Notify for Tracking {
         }
 
         Poll::Pending
-    }
-}
-
-fn angle_diff(a1: f64::Angle, a2: f64::Angle) -> f64::Angle {
-    let mut a1 = a1 % deg(360.0);
-    let mut a2 = a2 % deg(360.0);
-
-    if a1.signum() != a2.signum() {
-        if a1.is_sign_negative() { a1 = deg(360.0) + a1; } else { a2 = deg(360.0) + a2; }
-    }
-
-    if a2 - a1 > deg(180.0) {
-        a2 - a1 - deg(360.0)
-    } else if a2 - a1 < deg(-180.0) {
-        a2 - a1 + deg(360.0)
-    } else {
-        a2 - a1
-    }
-}
-
-mod tests {
-    use super::*;
-    use super::uom::si::angle;
-
-    macro_rules! assert_almost_eq {
-        ($expected:expr, $actual:expr) => {
-            if ($expected - $actual).abs() > deg(1.0e-10) {
-                panic!("expected: {:.1}, but was: {:.1}", $expected.get::<angle::degree>(), $actual.get::<angle::degree>());
-            }
-        };
-    }
-
-    #[test]
-    fn azimuth_difference_calculation() {
-        assert_almost_eq!(deg(20.0), angle_diff(deg(10.0), deg(30.0)));
-        assert_almost_eq!(deg(-20.0), angle_diff(deg(10.0), deg(350.0)));
-        assert_almost_eq!(deg(20.0), angle_diff(deg(350.0), deg(10.0)));
-        assert_almost_eq!(deg(-10.0), angle_diff(deg(350.0), deg(340.0)));
-        assert_almost_eq!(deg(-10.0), angle_diff(deg(-10.0), deg(340.0)));
-        assert_almost_eq!(deg(10.0), angle_diff(deg(10.0), deg(-340.0)));
     }
 }

@@ -104,8 +104,7 @@ pub struct Texts {
     pub mount_name: TextContent,
     pub mount_az: TextContent,
     pub mount_alt: TextContent,
-    pub mount_az_spd: TextContent,
-    pub mount_alt_spd: TextContent,
+    pub mount_total_az_travel: TextContent,
 }
 
 struct CommandBarBuilder {
@@ -193,9 +192,10 @@ pub fn init(state: &mut ProgramState) {
     curs.add_global_callback('m', cclone!([
         @weak (state.tui) as tui,
         @weak (state.mount) as mount,
-        @weak (state.config) as config
+        @weak (state.config) as config,
+        (state.tracking.controller()) as tracking
         ], move |curs| {
-            show_dlg_on_global_callback!(mount_dialog::dialog, curs, tui, mount.clone(), config.clone());
+            show_dlg_on_global_callback!(mount_dialog::dialog, curs, tui, mount.clone(), config.clone(), tracking.clone());
         }
     ));
 
@@ -281,8 +281,7 @@ fn init_views(curs: &mut cursive::Cursive) -> Texts {
     let mount_name = TextContent::new("(disconnected)");
     let mount_az = TextContent::new("");
     let mount_alt = TextContent::new("");
-    let mount_az_spd = TextContent::new("");
-    let mount_alt_spd = TextContent::new("");
+    let mount_total_az_travel = TextContent::new("");
     curs.screen_mut().add_layer_at(
         Position::new(Offset::Absolute(45), Offset::Absolute(1)),
         Panel::new(LinearLayout::vertical()
@@ -292,6 +291,10 @@ fn init_views(curs: &mut cursive::Cursive) -> Texts {
                     .child(label_and_content("az. ", mount_az.clone()))
                     .child(DummyView{}.min_width(1))
                     .child(label_and_content("alt. ", mount_alt.clone()))
+            )
+            .child(
+                LinearLayout::horizontal()
+                    .child(label_and_content("total az. travel ", mount_total_az_travel.clone()))
             )
         )
         .title("Mount")
@@ -331,8 +334,7 @@ fn init_views(curs: &mut cursive::Cursive) -> Texts {
         mount_name,
         mount_az,
         mount_alt,
-        mount_az_spd,
-        mount_alt_spd
+        mount_total_az_travel
     }
 }
 

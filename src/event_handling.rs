@@ -17,9 +17,16 @@
 //
 
 use cgmath::{Deg, EuclideanSpace, InnerSpace, Point3, Rad, Vector3};
-use crate::{cursive_stepper::Running, data, data::{as_deg, as_deg_per_s, ProgramState, TimerId, timers}, mount::Mount};
+use crate::{
+    cursive_stepper::Running,
+    data,
+    data::{as_deg, as_deg_per_s, ProgramState, TimerId, timers},
+    mount::{Mount, MountWrapper},
+    tracking::TrackingController,
+    upgrade
+};
 use pointing_utils::{cgmath, TargetInfoMessage, uom};
-use std::{future::Future, task::Poll};
+use std::{cell::RefCell, future::Future, rc::Weak, task::Poll};
 use uom::{si::f64, si::{angle, angular_velocity, length, velocity}};
 
 
@@ -52,8 +59,20 @@ fn on_main_timer(state: &mut ProgramState) {
         state.mount_spd.borrow_mut().notify_pos(axis1, axis2);
         let a1deg = as_deg(axis1);
         let azimuth = if a1deg >= 0.0 && a1deg <= 180.0 { a1deg } else { 360.0 + a1deg };
-        tui!(state).text_content.mount_az.set_content(format!("{:.2}°", azimuth));
-        tui!(state).text_content.mount_alt.set_content(format!("{:.2}°", as_deg(axis2)));
+
+        let mut mount_az_str = format!("{:.2}°", azimuth);
+        let mut mount_alt_str = format!("{:.2}°", as_deg(axis2));
+        if let Some((az_spd, alt_spd)) = state.mount_spd.borrow().get() {
+            mount_az_str += &format!("  {:.2}°/s", az_spd.get::<angular_velocity::degree_per_second>());
+            mount_alt_str += &format!("  {:.2}°/s", alt_spd.get::<angular_velocity::degree_per_second>());
+        }
+        tui!(state).text_content.mount_az.set_content(mount_az_str);
+        tui!(state).text_content.mount_alt.set_content(mount_alt_str);
+
+        tui!(state).text_content.mount_total_az_travel.set_content(
+            format!("{:.1}°", as_deg(state.mount.borrow().as_ref().unwrap().total_axis_travel().0))
+        );
+
         state.refresh_tui();
     }
 }
@@ -236,4 +255,17 @@ fn on_data_received(state: &mut ProgramState, message: Result<String, std::io::E
     state.refresh_tui();
 
     Poll::Pending
+}
+
+pub fn on_max_travel_exceeded(
+    mount: &mut MountWrapper,
+    axis1: bool,
+    axis2: bool,
+    tracking: TrackingController
+) {
+    if axis1 {
+        log::warn!("max travel in azimuth exceeded");
+        tracking.stop();
+        if let Err(e) = mount.stop() { log::error!("error stopping mount: {}", e); }
+    }
 }

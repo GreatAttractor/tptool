@@ -150,7 +150,7 @@ pub struct ProgramState {
     pub timers: Vec<Timer>,
     pub tracking: Tracking,
     pub tui: Rc<RefCell<Option<TuiData>>>, // always `Some` after program start
-    pub target: Rc<RefCell<Option<Target>>>
+    pub target: Rc<RefCell<Option<Target>>>,
 }
 
 impl ProgramState {
@@ -234,4 +234,44 @@ pub fn calc_az_alt_between_points(p1: &GeoPos, p2: &GeoPos) -> (f64::Angle, f64:
     let altitude = Rad(((ang_dist_cos - Into::<f64>::into((R + p1.elevation) / (R + p2.elevation))) / ang_dist_sin).atan());
 
     (deg(Deg::from(azimuth).0), deg(Deg::from(altitude).0))
+}
+
+pub fn angle_diff(a1: f64::Angle, a2: f64::Angle) -> f64::Angle {
+    let mut a1 = a1 % deg(360.0);
+    let mut a2 = a2 % deg(360.0);
+
+    if a1.signum() != a2.signum() {
+        if a1.is_sign_negative() { a1 = deg(360.0) + a1; } else { a2 = deg(360.0) + a2; }
+    }
+
+    if a2 - a1 > deg(180.0) {
+        a2 - a1 - deg(360.0)
+    } else if a2 - a1 < deg(-180.0) {
+        a2 - a1 + deg(360.0)
+    } else {
+        a2 - a1
+    }
+}
+
+mod tests {
+    use super::*;
+    use super::uom::si::angle;
+
+    macro_rules! assert_almost_eq {
+        ($expected:expr, $actual:expr) => {
+            if ($expected - $actual).abs() > deg(1.0e-10) {
+                panic!("expected: {:.1}, but was: {:.1}", $expected.get::<angle::degree>(), $actual.get::<angle::degree>());
+            }
+        };
+    }
+
+    #[test]
+    fn azimuth_difference_calculation() {
+        assert_almost_eq!(deg(20.0), angle_diff(deg(10.0), deg(30.0)));
+        assert_almost_eq!(deg(-20.0), angle_diff(deg(10.0), deg(350.0)));
+        assert_almost_eq!(deg(20.0), angle_diff(deg(350.0), deg(10.0)));
+        assert_almost_eq!(deg(-10.0), angle_diff(deg(350.0), deg(340.0)));
+        assert_almost_eq!(deg(-10.0), angle_diff(deg(-10.0), deg(340.0)));
+        assert_almost_eq!(deg(10.0), angle_diff(deg(10.0), deg(-340.0)));
+    }
 }

@@ -20,6 +20,7 @@ use crate::{
     cclone,
     config::Configuration,
     mount,
+    tracking::TrackingController,
     tui,
     tui::{close_dialog, get_edit_view_str, msg_box, names, set_edit_view_str, TuiData},
     upgrade
@@ -58,7 +59,8 @@ impl MountType {
 pub fn dialog(
     tui: Weak<RefCell<Option<TuiData>>>,
     mount: Weak<RefCell<Option<mount::MountWrapper>>>,
-    config: Weak<RefCell<Configuration>>
+    config: Weak<RefCell<Configuration>>,
+    tracking: TrackingController
 ) -> impl View {
     let param_descr_content = TextContent::new(MountType::Simulator.connection_param_descr());
     let param_descr = TextView::new_with_content(param_descr_content.clone());
@@ -83,18 +85,18 @@ pub fn dialog(
             .child(param_descr)
             .child(EditView::new()
                 .content(config.upgrade().unwrap().borrow().mount_simulator_addr().unwrap_or("".into()))
-                .on_submit(cclone!([tui, mount, config], move |curs, s| {
+                .on_submit(cclone!([tui, mount, config, tracking], move |curs, s| {
                     upgrade!(tui, mount, config);
-                    on_connect_to_mount(curs, &tui, &mount, &config, *rb_group.selection(), s);
+                    on_connect_to_mount(curs, &tui, &mount, &config, *rb_group.selection(), s, tracking.clone());
                 }))
                 .with_name(names::MOUNT_CONNECTION)
                 .fixed_width(20)
             )
     )
-    .button("OK", cclone!([tui, mount, config], move |curs| {
+    .button("OK", cclone!([tui, mount, config, tracking], move |curs| {
         upgrade!(tui, mount, config);
         let connection_param = get_edit_view_str(curs, names::MOUNT_CONNECTION);
-        on_connect_to_mount(curs, &tui, &mount, &config, *rb_group2.selection(), &connection_param);
+        on_connect_to_mount(curs, &tui, &mount, &config, *rb_group2.selection(), &connection_param, tracking.clone());
     }))
 
     .button("Cancel",crate::cclone!([tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
@@ -109,7 +111,8 @@ fn on_connect_to_mount(
     mount: &Rc<RefCell<Option<mount::MountWrapper>>>,
     config: &Rc<RefCell<Configuration>>,
     mount_type: MountType,
-    connection_param: &str
+    connection_param: &str,
+    tracking: TrackingController
 ) {
     let result = match mount_type {
         MountType::Simulator => mount::Simulator::new(connection_param),
@@ -120,7 +123,14 @@ fn on_connect_to_mount(
         Ok(m) => {
             log::info!("connected to {}", m.get_info());
             tui!(tui).text_content.mount_name.set_content(m.get_info());
-            *mount.borrow_mut() = Some(mount::MountWrapper::new(m));
+            let mut wrapper = mount::MountWrapper::new(m);
+            wrapper.set_on_max_travel_exceeded(Box::new(cclone!(
+                [tracking],
+                move |mount, axis1, axis2| crate::event_handling::on_max_travel_exceeded(
+                    mount, axis1, axis2, tracking.clone()
+                )
+            )));
+            *mount.borrow_mut() = Some(wrapper);
             match mount_type {
                 MountType::Simulator => config.borrow_mut().set_mount_simulator_addr(connection_param),
                 MountType::Ioptron => config.borrow_mut().set_mount_ioptron_device(connection_param)
