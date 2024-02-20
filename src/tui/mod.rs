@@ -23,11 +23,12 @@ mod shadow_view;
 mod simple_dialog;
 mod zero_pos_dialog;
 
-use crate::{cclone, data::ProgramState, mount::Mount, upgrade};
+use crate::{cclone, data, data::ProgramState, mount::Mount, upgrade};
 use cursive::{
     align::HAlign,
     CursiveRunnable,
     CursiveRunner,
+    event,
     reexports::enumset,
     Rect,
     theme,
@@ -51,8 +52,10 @@ use cursive::{
     },
     With
 };
+use pointing_utils::uom;
 use shadow_view::WithShadow;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::{Rc, Weak}};
+use uom::{si::f64, si::angular_velocity};
 
 /// Unique Cursive view names.
 mod names {
@@ -89,6 +92,8 @@ macro_rules! show_dlg_on_global_callback {
     };
 }
 
+const SLEW_SPEED_CHANGE_FACTOR: f64 = 2.0;
+
 pub struct TuiData {
     pub text_content: Texts,
     pub showing_dialog: bool
@@ -105,7 +110,8 @@ pub struct Texts {
     pub mount_az: TextContent,
     pub mount_alt: TextContent,
     pub mount_total_az_travel: TextContent,
-    pub tracking_state: TextContent
+    pub tracking_state: TextContent,
+    pub slew_speed: TextContent,
 }
 
 struct CommandBarBuilder {
@@ -221,10 +227,20 @@ pub fn init(state: &mut ProgramState) {
         }
     }));
 
+    curs.add_global_callback(event::Event::Key(event::Key::PageUp), cclone!(
+        [@weak (state.slew_speed) as slew_speed, @weak (state.tui) as tui], move |_| {
+            change_slew_speed(SLEW_SPEED_CHANGE_FACTOR, slew_speed.clone(), tui.clone())
+        }));
+
+    curs.add_global_callback(event::Event::Key(event::Key::PageDown), cclone!(
+        [@weak (state.slew_speed) as slew_speed, @weak (state.tui) as tui], move |_| {
+            change_slew_speed(1.0 / SLEW_SPEED_CHANGE_FACTOR, slew_speed.clone(), tui.clone())
+        }));
+
     let main_theme = create_main_theme(curs.current_theme());
     curs.set_theme(main_theme);
 
-    let text_content = init_views(curs);
+    let text_content = init_views(curs, *state.slew_speed.borrow());
     init_command_bar(curs);
 
     *state.tui.borrow_mut() = Some(TuiData{
@@ -233,6 +249,19 @@ pub fn init(state: &mut ProgramState) {
     });
 
     curs.refresh();
+}
+
+fn change_slew_speed(
+    factor: f64,
+    slew_speed: Weak<RefCell<f64::AngularVelocity>>,
+    tui: Weak<RefCell<Option<TuiData>>>
+) {
+    upgrade!(slew_speed, tui);
+    let prev = *slew_speed.borrow();
+    *slew_speed.borrow_mut() = (prev * factor).min(data::deg_per_s(5.0)).max(data::deg_per_s(0.01));
+    tui.borrow().as_ref().unwrap().text_content.slew_speed.set_content(
+        format!("{:.02}°/s", data::as_deg_per_s(*slew_speed.borrow()))
+    );
 }
 
 fn init_command_bar(curs: &mut cursive::Cursive) {
@@ -260,15 +289,17 @@ fn init_command_bar(curs: &mut cursive::Cursive) {
     );
 }
 
-fn init_views(curs: &mut cursive::Cursive) -> Texts {
+fn init_views(curs: &mut cursive::Cursive, slew_speed: f64::AngularVelocity) -> Texts {
     // ---------------------------------
     // Status
     //
     let tracking_state = TextContent::new("disabled");
+    let slew_speed = TextContent::new(format!("{:.2}°/s", data::as_deg_per_s(slew_speed)));
     curs.screen_mut().add_layer_at(
         Position::new(Offset::Absolute(1), Offset::Absolute(8)),
         Panel::new(LinearLayout::vertical()
             .child(label_and_content("Tracking: ", tracking_state.clone()))
+            .child(label_and_content("Slew speed: ", slew_speed.clone()))
         )
         .title("Status")
         .title_position(HAlign::Left)
@@ -349,7 +380,8 @@ fn init_views(curs: &mut cursive::Cursive) -> Texts {
         mount_az,
         mount_alt,
         mount_total_az_travel,
-        tracking_state
+        tracking_state,
+        slew_speed
     }
 }
 

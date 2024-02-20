@@ -147,6 +147,7 @@ pub struct ProgramState {
     pub mount: Rc<RefCell<Option<mount::MountWrapper>>>,
     pub mount_spd: Rc<RefCell<MountSpeed>>,
     pub slewing: Slewing,
+    pub slew_speed: Rc<RefCell<f64::AngularVelocity>>,
     pub timers: Vec<Timer>,
     pub tracking: Tracking,
     pub tui: Rc<RefCell<Option<TuiData>>>, // always `Some` after program start

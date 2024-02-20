@@ -52,6 +52,7 @@ fn main() {
         mount: mount.clone(),
         mount_spd: mount_spd.clone(),
         slewing: Default::default(),
+        slew_speed: Rc::new(RefCell::new(data::deg_per_s(5.0))),
         target: Rc::clone(&target),
         timers: vec![
             data::Timer::new(data::timers::MAIN, MAIN_TIMER_INTERVAL),

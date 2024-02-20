@@ -188,7 +188,7 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
             if state.tracking.is_active() {
                 state.tracking.adjust_slew(state.slewing.axis1_rel, state.slewing.axis2_rel);
             } else {
-                let spd = data::deg_per_s(3.0);
+                let spd = *state.slew_speed.borrow();
                 if let Err(e) = state.mount.borrow_mut().as_mut().unwrap().slew(
                     spd * state.slewing.axis1_rel,
                     spd * state.slewing.axis2_rel
