@@ -25,6 +25,7 @@ mod mount;
 mod tracking;
 mod tui;
 
+use event_handling::on_tracking_state_changed;
 use std::{cell::RefCell, future::Future, rc::Rc};
 
 const MOUNT_SERVER_PORT: u16 = 45501;
@@ -37,11 +38,10 @@ fn main() {
 	let curs = cursive::default();
     let data_receiver = data_receiver::DataReceiver::new();
     let mut listener = stick::Listener::default();
-
     let mount = Rc::new(RefCell::new(None));
-
     let mount_spd = Rc::new(RefCell::new(data::MountSpeed::new()));
     let target = Rc::new(RefCell::new(None));
+    let tui = Rc::new(RefCell::new(None));
 
     let mut state = data::ProgramState{
         config: Rc::new(RefCell::new(config::Configuration::new())),
@@ -57,8 +57,14 @@ fn main() {
             data::Timer::new(data::timers::MAIN, MAIN_TIMER_INTERVAL),
             data::Timer::new(data::timers::TARGET_LOG, TARGET_LOG_TIMER_INTERVAL)
         ],
-        tracking: tracking::Tracking::new(data::deg_per_s(5.0), mount, mount_spd, target),
-        tui: Rc::new(RefCell::new(None)),
+        tracking: tracking::Tracking::new(
+            data::deg_per_s(5.0),
+            mount,
+            mount_spd,
+            target,
+            Box::new(cclone!([@weak tui], move |running| on_tracking_state_changed(running, tui.clone())))
+        ),
+        tui
     };
 
     tui::init(&mut state);

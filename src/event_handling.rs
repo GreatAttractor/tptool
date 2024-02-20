@@ -22,7 +22,9 @@ use crate::{
     data,
     data::{as_deg, as_deg_per_s, ProgramState, TimerId, timers},
     mount::{Mount, MountWrapper},
+    tracking,
     tracking::TrackingController,
+    tui::TuiData,
     upgrade
 };
 use pointing_utils::{cgmath, TargetInfoMessage, uom};
@@ -33,7 +35,7 @@ use uom::{si::f64, si::{angle, angular_velocity, length, velocity}};
 // TODO: make configurable
 const CONTROLLER_ID: u64 = 0x03006D041DC21440;
 
-macro_rules! tui {
+macro_rules! tui_s {
     ($state:ident) => { $state.tui().as_ref().unwrap() };
 }
 
@@ -66,10 +68,10 @@ fn on_main_timer(state: &mut ProgramState) {
             mount_az_str += &format!("  {:.2}°/s", az_spd.get::<angular_velocity::degree_per_second>());
             mount_alt_str += &format!("  {:.2}°/s", alt_spd.get::<angular_velocity::degree_per_second>());
         }
-        tui!(state).text_content.mount_az.set_content(mount_az_str);
-        tui!(state).text_content.mount_alt.set_content(mount_alt_str);
+        tui_s!(state).text_content.mount_az.set_content(mount_az_str);
+        tui_s!(state).text_content.mount_alt.set_content(mount_alt_str);
 
-        tui!(state).text_content.mount_total_az_travel.set_content(
+        tui_s!(state).text_content.mount_total_az_travel.set_content(
             format!("{:.1}°", as_deg(state.mount.borrow().as_ref().unwrap().total_axis_travel().0))
         );
 
@@ -268,4 +270,11 @@ pub fn on_max_travel_exceeded(
         tracking.stop();
         if let Err(e) = mount.stop() { log::error!("error stopping mount: {}", e); }
     }
+}
+
+pub fn on_tracking_state_changed(running: tracking::Running, tui: Weak<RefCell<Option<TuiData>>>) {
+    upgrade!(tui);
+    tui.borrow().as_ref().unwrap().text_content.tracking_state.set_content(
+        if running.0 { "enabled" } else { "disabled"}
+    );
 }

@@ -105,6 +105,7 @@ pub struct Texts {
     pub mount_az: TextContent,
     pub mount_alt: TextContent,
     pub mount_total_az_travel: TextContent,
+    pub tracking_state: TextContent
 }
 
 struct CommandBarBuilder {
@@ -261,12 +262,25 @@ fn init_command_bar(curs: &mut cursive::Cursive) {
 
 fn init_views(curs: &mut cursive::Cursive) -> Texts {
     // ---------------------------------
+    // Status
+    //
+    let tracking_state = TextContent::new("disabled");
+    curs.screen_mut().add_layer_at(
+        Position::new(Offset::Absolute(1), Offset::Absolute(8)),
+        Panel::new(LinearLayout::vertical()
+            .child(label_and_content("Tracking: ", tracking_state.clone()))
+        )
+        .title("Status")
+        .title_position(HAlign::Left)
+    );
+
+    // ---------------------------------
     // Controller
     //
     let controller_name = TextContent::new("(disconnected)");
     let controller_event = TextContent::new("");
     curs.screen_mut().add_layer_at(
-        Position::new(Offset::Absolute(1), Offset::Absolute(8)),
+        Position::new(Offset::Absolute(45), Offset::Absolute(8)),
         Panel::new(LinearLayout::vertical()
             .child(TextView::new_with_content(controller_name.clone()))
             .child(TextView::new_with_content(controller_event.clone()))
@@ -289,7 +303,7 @@ fn init_views(curs: &mut cursive::Cursive) -> Texts {
             .child(
                 LinearLayout::horizontal()
                     .child(label_and_content("az. ", mount_az.clone()))
-                    .child(DummyView{}.min_width(1))
+                    .child(DummyView{}.min_width(2))
                     .child(label_and_content("alt. ", mount_alt.clone()))
             )
             .child(
@@ -334,7 +348,8 @@ fn init_views(curs: &mut cursive::Cursive) -> Texts {
         mount_name,
         mount_az,
         mount_alt,
-        mount_total_az_travel
+        mount_total_az_travel,
+        tracking_state
     }
 }
 

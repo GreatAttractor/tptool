@@ -26,7 +26,7 @@ pub struct TrackingController {
 impl TrackingController {
     pub fn start(&self) {
         log::info!("start tracking");
-        self.state.upgrade().unwrap().borrow_mut().timer = Some(data::Timer::new(0, TIMER_INTERVAL));
+        self.state.upgrade().unwrap().borrow_mut().start_tracking();
     }
 
     pub fn stop(&self) {
@@ -39,16 +39,23 @@ impl TrackingController {
     }
 }
 
+pub struct Running(pub bool);
+
+/// Params: mount wrapper, axis1 travel exceeded, axis2 travel exceeded.
+pub type OnTrackingStateChanged = dyn Fn(Running) + 'static;
+
 struct State {
     timer: Option<data::Timer>,
     waker: Option<Waker>,
+    callback: Box<OnTrackingStateChanged>
 }
 
 impl State {
-    fn new() -> State {
+    fn new(callback: Box<OnTrackingStateChanged>) -> State {
         State{
             timer: None,
-            waker: None
+            waker: None,
+            callback
         }
     }
 
@@ -58,8 +65,14 @@ impl State {
         }
     }
 
+    fn start_tracking(&mut self) {
+        self.timer = Some(data::Timer::new(0, TIMER_INTERVAL));
+        (*self.callback)(Running(true));
+    }
+
     fn stop_tracking(&mut self) {
         self.timer = None;
+        (*self.callback)(Running(false));
     }
 }
 
@@ -86,12 +99,13 @@ impl Tracking {
         mount: Rc<RefCell<Option<mount::MountWrapper>>>,
         mount_spd: Rc<RefCell<MountSpeed>>,
         target: Rc<RefCell<Option<data::Target>>>,
+        callback: Box<OnTrackingStateChanged>
     ) -> Tracking {
         Tracking{
             max_spd,
             mount,
             mount_spd,
-            state: Rc::new(RefCell::new(State::new())),
+            state: Rc::new(RefCell::new(State::new(callback))),
             target,
             adjusting: false,
             adjustment: None
