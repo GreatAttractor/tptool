@@ -235,6 +235,8 @@ impl Tracking {
         ).asin()); // rotation angle of `offset` relative to `v_tangential`
 
         let rotation = if is_obtuse { Rad::from(Deg(180.0)) - rotation } else { rotation };
+        let is_rotation_cw = target.v_tangential.cross(offset).dot(target_pos.to_vec()) < 0.0;
+        let rotation = if is_rotation_cw { -rotation } else { rotation };
 
         // approximate, since we use chord instead of arc length
         let angular_offset = f64::Angle::new::<angle::radian>(offset.magnitude());
