@@ -74,6 +74,9 @@ fn on_main_timer(state: &mut ProgramState) {
         tui_s!(state).text_content.mount_total_az_travel.set_content(
             format!("{:.1}°", as_deg(state.mount.borrow().as_ref().unwrap().total_axis_travel().0))
         );
+        tui_s!(state).text_content.mount_total_alt_travel.set_content(
+            format!("{:.1}°", as_deg(state.mount.borrow().as_ref().unwrap().total_axis_travel().1))
+        );
 
         state.refresh_tui();
     }

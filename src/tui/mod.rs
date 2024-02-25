@@ -110,6 +110,7 @@ pub struct Texts {
     pub mount_az: TextContent,
     pub mount_alt: TextContent,
     pub mount_total_az_travel: TextContent,
+    pub mount_total_alt_travel: TextContent,
     pub tracking_state: TextContent,
     pub slew_speed: TextContent,
 }
@@ -327,6 +328,7 @@ fn init_views(curs: &mut cursive::Cursive, slew_speed: f64::AngularVelocity) -> 
     let mount_az = TextContent::new("");
     let mount_alt = TextContent::new("");
     let mount_total_az_travel = TextContent::new("");
+    let mount_total_alt_travel = TextContent::new("");
     curs.screen_mut().add_layer_at(
         Position::new(Offset::Absolute(45), Offset::Absolute(1)),
         Panel::new(LinearLayout::vertical()
@@ -339,7 +341,10 @@ fn init_views(curs: &mut cursive::Cursive, slew_speed: f64::AngularVelocity) -> 
             )
             .child(
                 LinearLayout::horizontal()
-                    .child(label_and_content("total az. travel ", mount_total_az_travel.clone()))
+                    .child(TextView::new("total travel: "))
+                    .child(label_and_content("az. ", mount_total_az_travel.clone()))
+                    .child(DummyView{}.min_width(1))
+                    .child(label_and_content("alt. ", mount_total_alt_travel.clone()))
             )
         )
         .title("Mount")
@@ -380,6 +385,7 @@ fn init_views(curs: &mut cursive::Cursive, slew_speed: f64::AngularVelocity) -> 
         mount_az,
         mount_alt,
         mount_total_az_travel,
+        mount_total_alt_travel,
         tracking_state,
         slew_speed
     }
