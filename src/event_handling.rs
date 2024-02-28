@@ -60,7 +60,7 @@ fn on_main_timer(state: &mut ProgramState) {
     if let Ok((axis1, axis2)) = pos {
         state.mount_spd.borrow_mut().notify_pos(axis1, axis2);
         let a1deg = as_deg(axis1);
-        let azimuth = if a1deg >= 0.0 && a1deg <= 180.0 { a1deg } else { 360.0 + a1deg };
+        let azimuth = (if a1deg >= 0.0 && a1deg <= 180.0 { a1deg } else { 360.0 + a1deg }) % 360.0;
 
         let mut mount_az_str = format!("{:.2}°", azimuth);
         let mut mount_alt_str = format!("{:.2}°", as_deg(axis2));
@@ -270,6 +270,12 @@ pub fn on_max_travel_exceeded(
 ) {
     if axis1 {
         log::warn!("max travel in azimuth exceeded");
+    }
+    if axis2 {
+        log::warn!("max travel in altitude exceeded");
+    }
+
+    if axis1 || axis2 {
         tracking.stop();
         if let Err(e) = mount.stop() { log::error!("error stopping mount: {}", e); }
     }
