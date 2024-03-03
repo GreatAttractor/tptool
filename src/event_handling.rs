@@ -146,6 +146,14 @@ pub fn on_stop_mount(mount: &Rc<RefCell<Option<MountWrapper>>>, tracking: &Track
     }
 }
 
+pub fn on_toggle_tracking(tracking: &TrackingController) {
+    if tracking.is_active() {
+        tracking.stop();
+    } else {
+        tracking.start();
+    }
+}
+
 fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::Event))) -> std::task::Poll<()> {
     let (index, (id, event)) = idx_val;
 
@@ -163,6 +171,7 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
     } else {
         let mut slew_change = false;
 
+        // TODO: make all actions configurable
         match event {
             stick::Event::JoyX(value) => {
                 state.slewing.axis1_rel = value;
@@ -195,6 +204,9 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
                 if pressed { state.tracking.save_adjustment(); }
             },
             stick::Event::ActionV(pressed) => if pressed { on_stop_mount(&state.mount, &state.tracking.controller()); },
+            stick::Event::ActionB(pressed) => if pressed {
+                on_toggle_tracking(&state.tracking.controller());
+            },
             _ => ()
         }
 

@@ -175,11 +175,7 @@ pub fn init(state: &mut ProgramState) {
     ));
 
     curs.add_global_callback('t', cclone!([(state.tracking.controller()) as tracking], move |_| {
-        if tracking.is_active() {
-            tracking.stop();
-        } else {
-            tracking.start();
-        }
+        event_handling::on_toggle_tracking(&tracking);
     }));
 
     curs.add_global_callback('d', cclone!([
