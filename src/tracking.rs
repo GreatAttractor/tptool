@@ -65,7 +65,9 @@ pub type OnTrackingStateChanged = dyn Fn(Running) + 'static;
 struct State {
     timer: Option<data::Timer>,
     waker: Option<Waker>,
-    callback: Box<OnTrackingStateChanged>
+    callback: Box<OnTrackingStateChanged>,
+    adjusting: bool,
+    adjustment: Option<Adjustment>
 }
 
 impl State {
@@ -73,7 +75,9 @@ impl State {
         State{
             timer: None,
             waker: None,
-            callback
+            callback,
+            adjusting: false,
+            adjustment: None
         }
     }
 
@@ -90,6 +94,8 @@ impl State {
 
     fn stop_tracking(&mut self) {
         self.timer = None;
+        self.adjusting = false;
+        self.adjustment = None;
         (*self.callback)(Running(false));
     }
 }
@@ -107,8 +113,6 @@ pub struct Tracking {
     mount_spd: Rc<RefCell<MountSpeed>>, // TODO: make it unwriteable from here
     state: Rc<RefCell<State>>,
     target: Rc<RefCell<Option<data::Target>>>, // TODO: make it unwriteable from here
-    adjusting: bool,
-    adjustment: Option<Adjustment>
 }
 
 impl Tracking {
@@ -125,8 +129,6 @@ impl Tracking {
             mount_spd,
             state: Rc::new(RefCell::new(State::new(callback))),
             target,
-            adjusting: false,
-            adjustment: None
         }
     }
 
@@ -135,7 +137,7 @@ impl Tracking {
             return Err("mount not connected".into());
         }
 
-        if self.adjusting { return Ok(()); }
+        if self.state.borrow().adjusting { return Ok(()); }
 
         if self.mount_spd.borrow().get().is_none() {
             log::debug!("waiting for mount speed estimation");
@@ -160,7 +162,7 @@ impl Tracking {
             let t = self.target.borrow();
             let target = t.as_ref().ok_or::<Box<dyn Error>>("no target".into())?;
 
-            let (target_az, target_alt) = if let Some(adj) = self.adjustment.as_ref() {
+            let (target_az, target_alt) = if let Some(adj) = self.state.borrow().adjustment.as_ref() {
                 get_adjusted_pos(target.azimuth, target.altitude, target.v_tangential, adj)
             } else {
                 (target.azimuth, target.altitude)
@@ -203,8 +205,8 @@ impl Tracking {
 
     /// Parameters are between [-1.0; 1.0].
     pub fn adjust_slew(&mut self, axis1_rel_spd: f64, axis2_rel_spd: f64) {
-        if !self.adjusting {
-            self.adjusting = true;
+        if !self.state.borrow().adjusting {
+            self.state.borrow_mut().adjusting = true;
             log::info!("begin manual adjustment");
         }
 
@@ -217,13 +219,12 @@ impl Tracking {
             }
         } else {
             log::error!("no target");
-            self.adjustment = None;
-            self.state.borrow_mut().timer = None;
+            self.state.borrow_mut().stop_tracking();
         }
     }
 
     pub fn save_adjustment(&mut self) {
-        if !self.adjusting { return; }
+        if !self.state.borrow().adjusting { return; }
 
         let target = self.target.borrow();
         if target.is_none() {
@@ -269,14 +270,15 @@ impl Tracking {
             as_deg(adjustment.angle)
         );
 
-        self.adjustment = Some(adjustment);
-
-        self.adjusting = false;
+        let mut state = self.state.borrow_mut();
+        state.adjustment = Some(adjustment);
+        state.adjusting = false;
     }
 
     pub fn cancel_adjustment(&mut self) {
-        self.adjusting = false;
-        self.adjustment = None;
+        let mut state = self.state.borrow_mut();
+        state.adjusting = false;
+        state.adjustment = None;
         log::info!("cancel manual adjustment");
     }
 }
