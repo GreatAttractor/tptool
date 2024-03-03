@@ -28,7 +28,7 @@ use crate::{
     upgrade
 };
 use pointing_utils::{cgmath, TargetInfoMessage, uom};
-use std::{cell::RefCell, future::Future, rc::Weak, task::Poll};
+use std::{cell::RefCell, future::Future, rc::{Rc, Weak}, task::Poll};
 use uom::{si::f64, si::{angle, angular_velocity, length, velocity}};
 
 
@@ -136,6 +136,16 @@ fn on_controller_connected(state: &mut ProgramState, mut controller: stick::Cont
     std::task::Poll::Pending
 }
 
+pub fn on_stop_mount(mount: &Rc<RefCell<Option<MountWrapper>>>, tracking: &TrackingController) {
+    let mut mount = mount.borrow_mut();
+    if let Some(mount) = mount.as_mut() {
+        if let Err(e) = mount.stop() {
+            log::error!("error stopping the mount: {}", e);
+        }
+        tracking.stop();
+    }
+}
+
 fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::Event))) -> std::task::Poll<()> {
     let (index, (id, event)) = idx_val;
 
@@ -184,6 +194,7 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
             stick::Event::BumperR(pressed) => {
                 if pressed { state.tracking.save_adjustment(); }
             },
+            stick::Event::ActionV(pressed) => if pressed { on_stop_mount(&state.mount, &state.tracking.controller()); },
             _ => ()
         }
 

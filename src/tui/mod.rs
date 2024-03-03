@@ -23,7 +23,7 @@ mod shadow_view;
 mod simple_dialog;
 mod zero_pos_dialog;
 
-use crate::{cclone, data, data::ProgramState, mount::Mount, upgrade};
+use crate::{cclone, data, data::ProgramState, event_handling, mount::Mount, upgrade};
 use cursive::{
     align::HAlign,
     CursiveRunnable,
@@ -170,13 +170,7 @@ pub fn init(state: &mut ProgramState) {
     curs.add_global_callback('s', cclone!([@weak (state.mount) as mount, (state.tracking.controller()) as tracking],
         move |_| {
             let mount = mount.upgrade().unwrap();
-            let mut mount = mount.borrow_mut();
-            if let Some(mount) = mount.as_mut() {
-                if let Err(e) = mount.stop() {
-                    log::error!("error stopping the mount: {}", e);
-                }
-                tracking.stop();
-            }
+            event_handling::on_stop_mount(&mount, &tracking);
         }
     ));
 
