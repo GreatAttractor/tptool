@@ -23,11 +23,15 @@ mod shadow_view;
 mod simple_dialog;
 mod zero_pos_dialog;
 
-use crate::{cclone, data, data::ProgramState, event_handling, mount::Mount, upgrade};
+use crate::{
+    cclone,
+    data,
+    data::ProgramState,
+    event_handling,
+    event_handling::SLEW_SPEED_CHANGE_FACTOR
+};
 use cursive::{
     align::HAlign,
-    CursiveRunnable,
-    CursiveRunner,
     event,
     reexports::enumset,
     Rect,
@@ -35,7 +39,7 @@ use cursive::{
     theme::Theme,
     Vec2,
     View,
-    view::{Nameable, Offset, Position, Resizable},
+    view::{Offset, Position, Resizable},
     views::{
         Dialog,
         DummyView,
@@ -44,18 +48,16 @@ use cursive::{
         LinearLayout,
         OnLayoutView,
         Panel,
-        ResizedView,
         SelectView,
         TextContent,
         TextView,
         ThemedView
-    },
-    With
+    }
 };
 use pointing_utils::uom;
 use shadow_view::WithShadow;
-use std::{cell::RefCell, rc::{Rc, Weak}};
-use uom::{si::f64, si::angular_velocity};
+use std::{cell::RefCell, rc::Rc};
+use uom::si::f64;
 
 /// Unique Cursive view names.
 mod names {
@@ -91,8 +93,6 @@ macro_rules! show_dlg_on_global_callback {
         );
     };
 }
-
-const SLEW_SPEED_CHANGE_FACTOR: f64 = 2.0;
 
 pub struct TuiData {
     pub text_content: Texts,
@@ -218,15 +218,34 @@ pub fn init(state: &mut ProgramState) {
         }
     }));
 
-    curs.add_global_callback(event::Event::Key(event::Key::PageUp), cclone!(
-        [@weak (state.slew_speed) as slew_speed, @weak (state.tui) as tui], move |_| {
-            change_slew_speed(SLEW_SPEED_CHANGE_FACTOR, slew_speed.clone(), tui.clone())
-        }));
+    curs.add_global_callback(event::Event::Key(event::Key::PageUp), cclone!([
+            @weak (state.slew_speed) as slew_speed,
+            @weak (state.tui) as tui,
+            (state.tracking.controller()) as tracking
+        ], move |_| {
+            event_handling::change_slew_speed(
+                SLEW_SPEED_CHANGE_FACTOR,
+                slew_speed.clone(),
+                tui.clone(),
+                &tracking
+            );
+        }
+    ));
 
-    curs.add_global_callback(event::Event::Key(event::Key::PageDown), cclone!(
-        [@weak (state.slew_speed) as slew_speed, @weak (state.tui) as tui], move |_| {
-            change_slew_speed(1.0 / SLEW_SPEED_CHANGE_FACTOR, slew_speed.clone(), tui.clone())
-        }));
+    curs.add_global_callback(event::Event::Key(event::Key::PageDown), cclone!([
+            @weak (state.slew_speed) as slew_speed,
+            @weak (state.tui) as tui,
+            (state.tracking.controller()) as tracking
+        ], move |_| {
+            event_handling::change_slew_speed(
+                1.0 / SLEW_SPEED_CHANGE_FACTOR,
+                slew_speed.clone(),
+                tui.clone(),
+                &tracking
+            );
+        }
+    ));
+
 
     let main_theme = create_main_theme(curs.current_theme());
     curs.set_theme(main_theme);
@@ -240,19 +259,6 @@ pub fn init(state: &mut ProgramState) {
     });
 
     curs.refresh();
-}
-
-fn change_slew_speed(
-    factor: f64,
-    slew_speed: Weak<RefCell<f64::AngularVelocity>>,
-    tui: Weak<RefCell<Option<TuiData>>>
-) {
-    upgrade!(slew_speed, tui);
-    let prev = *slew_speed.borrow();
-    *slew_speed.borrow_mut() = (prev * factor).min(data::deg_per_s(5.0)).max(data::deg_per_s(0.01));
-    tui.borrow().as_ref().unwrap().text_content.slew_speed.set_content(
-        format!("{:.02}°/s", data::as_deg_per_s(*slew_speed.borrow()))
-    );
 }
 
 fn init_command_bar(curs: &mut cursive::Cursive) {

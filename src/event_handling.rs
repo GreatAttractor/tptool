@@ -31,6 +31,7 @@ use pointing_utils::{cgmath, TargetInfoMessage, uom};
 use std::{cell::RefCell, future::Future, rc::{Rc, Weak}, task::Poll};
 use uom::{si::f64, si::{angle, angular_velocity, length, velocity}};
 
+pub const SLEW_SPEED_CHANGE_FACTOR: f64 = 1.5;
 
 // TODO: make configurable
 const CONTROLLER_ID: u64 = 0x03006D041DC21440;
@@ -207,6 +208,22 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
             stick::Event::ActionB(pressed) => if pressed {
                 on_toggle_tracking(&state.tracking.controller());
             },
+            stick::Event::ActionH(pressed) => if pressed {
+                change_slew_speed(
+                    SLEW_SPEED_CHANGE_FACTOR,
+                    Rc::downgrade(&state.slew_speed),
+                    Rc::downgrade(&state.tui),
+                    &state.tracking.controller()
+                );
+            },
+            stick::Event::ActionA(pressed) => if pressed {
+                change_slew_speed(
+                    1.0 / SLEW_SPEED_CHANGE_FACTOR,
+                    Rc::downgrade(&state.slew_speed),
+                    Rc::downgrade(&state.tui),
+                    &state.tracking.controller()
+                );
+            },
             _ => ()
         }
 
@@ -309,4 +326,25 @@ pub fn on_tracking_state_changed(running: tracking::Running, tui: Weak<RefCell<O
     tui.borrow().as_ref().unwrap().text_content.tracking_state.set_content(
         if running.0 { "enabled" } else { "disabled"}
     );
+}
+
+pub fn change_slew_speed(
+    factor: f64,
+    slew_speed: Weak<RefCell<f64::AngularVelocity>>,
+    tui: Weak<RefCell<Option<TuiData>>>,
+    tracking: &TrackingController
+) {
+    if tracking.is_active() {
+        tracking.change_adjustment_slew_speed(factor);
+        // TODO: separately display adjustment speed in the "Status" view
+    } else {
+        upgrade!(slew_speed, tui);
+        let prev = *slew_speed.borrow();
+        *slew_speed.borrow_mut() = (prev * factor).min(data::deg_per_s(5.0)).max(data::deg_per_s(0.01));
+        tui.borrow().as_ref().unwrap().text_content.slew_speed.set_content(
+            format!("{:.02}°/s", data::as_deg_per_s(*slew_speed.borrow()))
+        );
+    }
+
+    // TODO: post a TUI refresh request (make it through a Weak-flag somewhere)
 }

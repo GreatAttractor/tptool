@@ -30,7 +30,7 @@ use uom::si::{angle, f64};
 
 // TODO: convert to const `angular_velocity::degree_per_second` once supported
 const MATCH_POS_SPD_DEG_PER_S: f64 = 0.25;
-const ADJUSTMENT_SPD_DEG_PER_S: f64 = 0.5;
+const MAX_ADJUSTMENT_SPD_DEG_PER_S: f64 = 0.5;
 
 const TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
 
@@ -55,6 +55,14 @@ impl TrackingController {
     pub fn is_active(&self) -> bool {
         self.state.upgrade().unwrap().borrow().timer.is_some()
     }
+
+    pub fn change_adjustment_slew_speed(&self, factor: f64) {
+        let state = self.state.upgrade().unwrap();
+        let mut state = state.borrow_mut();
+        state.adjustment_slew_speed = (state.adjustment_slew_speed * factor)
+            .max(deg_per_s(0.025))
+            .min(deg_per_s(MAX_ADJUSTMENT_SPD_DEG_PER_S));
+    }
 }
 
 pub struct Running(pub bool);
@@ -67,7 +75,8 @@ struct State {
     waker: Option<Waker>,
     callback: Box<OnTrackingStateChanged>,
     adjusting: bool,
-    adjustment: Option<Adjustment>
+    adjustment: Option<Adjustment>,
+    adjustment_slew_speed: AngSpeed
 }
 
 impl State {
@@ -77,7 +86,8 @@ impl State {
             waker: None,
             callback,
             adjusting: false,
-            adjustment: None
+            adjustment: None,
+            adjustment_slew_speed: deg_per_s(MAX_ADJUSTMENT_SPD_DEG_PER_S)
         }
     }
 
@@ -128,7 +138,7 @@ impl Tracking {
             mount,
             mount_spd,
             state: Rc::new(RefCell::new(State::new(callback))),
-            target,
+            target
         }
     }
 
@@ -210,10 +220,12 @@ impl Tracking {
             log::info!("begin manual adjustment");
         }
 
+        let adj_speed = self.state.borrow().adjustment_slew_speed;
+
         let t = self.target.borrow();
         if let Some(target) = t.as_ref() {
-            let new_axis1_spd = target.az_spd + axis1_rel_spd * deg_per_s(ADJUSTMENT_SPD_DEG_PER_S);
-            let new_axis2_spd = target.alt_spd + axis2_rel_spd * deg_per_s(ADJUSTMENT_SPD_DEG_PER_S);
+            let new_axis1_spd = target.az_spd + axis1_rel_spd * adj_speed;
+            let new_axis2_spd = target.alt_spd + axis2_rel_spd * adj_speed;
             if let Err(e) = self.mount.borrow_mut().as_mut().unwrap().slew(new_axis1_spd, new_axis2_spd) {
                 log::error!("error when slewing: {}", e);
             }
