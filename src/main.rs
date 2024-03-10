@@ -65,7 +65,8 @@ fn main() {
             target,
             Box::new(cclone!([@weak tui], move |running| on_tracking_state_changed(running, tui.clone())))
         ),
-        tui
+        tui,
+        refresher: tui::Refresher::new()
     };
 
     tui::init(&mut state);

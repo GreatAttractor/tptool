@@ -54,9 +54,10 @@ use cursive::{
         ThemedView
     }
 };
+use pasts::notify::Notify;
 use pointing_utils::uom;
 use shadow_view::WithShadow;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, pin::Pin, rc::{Rc, Weak}, task::{Context, Poll, Waker}};
 use uom::si::f64;
 
 /// Unique Cursive view names.
@@ -150,6 +151,48 @@ impl CommandBarBuilder {
     }
 }
 
+pub struct RefreshRequest {
+    refresh_requested: bool,
+    waker: Option<Waker>
+}
+
+impl RefreshRequest {
+    pub fn refresh(&mut self) {
+        self.refresh_requested = true;
+        self.waker.as_ref().unwrap().wake_by_ref();
+    }
+}
+
+pub struct Refresher {
+    request: Rc<RefCell<RefreshRequest>>
+}
+
+impl Refresher {
+    pub fn new() -> Refresher {
+        Refresher{ request: Rc::new(RefCell::new(RefreshRequest{ refresh_requested: false, waker: None })) }
+    }
+
+    pub fn request(&self) -> Weak<RefCell<RefreshRequest>> { Rc::downgrade(&self.request) }
+}
+
+impl Notify for Refresher {
+    type Event = ();
+
+    fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<()> {
+        if self.request.borrow().waker.is_none() {
+            self.request.borrow_mut().waker = Some(ctx.waker().clone());
+        }
+
+        let mut request = self.request.borrow_mut();
+        if request.refresh_requested {
+            request.refresh_requested = false;
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
 pub fn get_edit_view_str(curs: &mut cursive::Cursive, name: &str) -> Rc<String> {
     curs.call_on_name(name, |v: &mut EditView| { v.get_content() }).unwrap()
 }
@@ -221,13 +264,15 @@ pub fn init(state: &mut ProgramState) {
     curs.add_global_callback(event::Event::Key(event::Key::PageUp), cclone!([
             @weak (state.slew_speed) as slew_speed,
             @weak (state.tui) as tui,
-            (state.tracking.controller()) as tracking
+            (state.tracking.controller()) as tracking,
+            (state.refresher.request()) as refresh_req
         ], move |_| {
             event_handling::change_slew_speed(
                 SLEW_SPEED_CHANGE_FACTOR,
                 slew_speed.clone(),
                 tui.clone(),
-                &tracking
+                &tracking,
+                refresh_req.clone()
             );
         }
     ));
@@ -235,13 +280,15 @@ pub fn init(state: &mut ProgramState) {
     curs.add_global_callback(event::Event::Key(event::Key::PageDown), cclone!([
             @weak (state.slew_speed) as slew_speed,
             @weak (state.tui) as tui,
-            (state.tracking.controller()) as tracking
+            (state.tracking.controller()) as tracking,
+            (state.refresher.request()) as refresh_req
         ], move |_| {
             event_handling::change_slew_speed(
                 1.0 / SLEW_SPEED_CHANGE_FACTOR,
                 slew_speed.clone(),
                 tui.clone(),
-                &tracking
+                &tracking,
+                refresh_req.clone()
             );
         }
     ));

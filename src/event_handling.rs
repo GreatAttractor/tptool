@@ -24,11 +24,12 @@ use crate::{
     mount::{Mount, MountWrapper},
     tracking,
     tracking::TrackingController,
+    tui,
     tui::TuiData,
     upgrade
 };
 use pointing_utils::{cgmath, TargetInfoMessage, uom};
-use std::{cell::RefCell, future::Future, rc::{Rc, Weak}, task::Poll};
+use std::{cell::RefCell, future::Future, rc::{Rc, Weak}, task::{Poll, Waker}};
 use uom::{si::f64, si::{angle, angular_velocity, length, velocity}};
 
 pub const SLEW_SPEED_CHANGE_FACTOR: f64 = 1.5;
@@ -49,6 +50,7 @@ pub async fn event_loop(mut state: ProgramState) {
         .on(|s| &mut s.timers[..], on_timer)
         .on(|s| &mut s.data_receiver, on_data_received)
         .on(|s| &mut s.tracking, nop)
+        .on(|s| &mut s.refresher, on_refresher)
         .await;
 }
 
@@ -117,6 +119,11 @@ fn nop<S, C, T>(_: &mut S, _: C) -> Poll<T> {
     Poll::Pending
 }
 
+fn on_refresher(state: &mut ProgramState, _: ()) -> Poll<()> {
+    log::info!("refresher!");
+    Poll::Pending
+}
+
 fn on_controller_connected(state: &mut ProgramState, mut controller: stick::Controller) -> Poll<()> {
     if controller.id() == CONTROLLER_ID {
         let ctrl_str = format!("[{:016X}] {}", controller.id(), controller.name());
@@ -160,8 +167,6 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
 
     state.tui().as_ref().unwrap().text_content.controller_event.set_content(format!("{}", event)); //TESTING #########
     state.refresh_tui();
-
-    if state.mount.borrow().is_none() { return Poll::Pending; }
 
     if let stick::Event::Disconnect = event {
         if id == CONTROLLER_ID {
@@ -213,7 +218,8 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
                     SLEW_SPEED_CHANGE_FACTOR,
                     Rc::downgrade(&state.slew_speed),
                     Rc::downgrade(&state.tui),
-                    &state.tracking.controller()
+                    &state.tracking.controller(),
+                    state.refresher.request()
                 );
             },
             stick::Event::ActionA(pressed) => if pressed {
@@ -221,7 +227,8 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
                     1.0 / SLEW_SPEED_CHANGE_FACTOR,
                     Rc::downgrade(&state.slew_speed),
                     Rc::downgrade(&state.tui),
-                    &state.tracking.controller()
+                    &state.tracking.controller(),
+                    state.refresher.request()
                 );
             },
             _ => ()
@@ -230,7 +237,7 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
         if slew_change {
             if state.tracking.is_active() {
                 state.tracking.adjust_slew(state.slewing.axis1_rel, state.slewing.axis2_rel);
-            } else {
+            } else if state.mount.borrow().is_some() {
                 let spd = *state.slew_speed.borrow();
                 if let Err(e) = state.mount.borrow_mut().as_mut().unwrap().slew(
                     spd * state.slewing.axis1_rel,
@@ -332,7 +339,8 @@ pub fn change_slew_speed(
     factor: f64,
     slew_speed: Weak<RefCell<f64::AngularVelocity>>,
     tui: Weak<RefCell<Option<TuiData>>>,
-    tracking: &TrackingController
+    tracking: &TrackingController,
+    refresh_req: Weak<RefCell<tui::RefreshRequest>>
 ) {
     if tracking.is_active() {
         tracking.change_adjustment_slew_speed(factor);
@@ -346,5 +354,5 @@ pub fn change_slew_speed(
         );
     }
 
-    // TODO: post a TUI refresh request (make it through a Weak-flag somewhere)
+    refresh_req.upgrade().unwrap().borrow_mut().refresh();
 }

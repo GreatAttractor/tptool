@@ -24,6 +24,7 @@ use crate::{
     data_receiver::DataReceiver,
     mount,
     tracking::Tracking,
+    tui,
     tui::TuiData
 };
 use pointing_utils::{cgmath, GeoPos, to_global_unit, uom};
@@ -152,6 +153,7 @@ pub struct ProgramState {
     pub tracking: Tracking,
     pub tui: Rc<RefCell<Option<TuiData>>>, // always `Some` after program start
     pub target: Rc<RefCell<Option<Target>>>,
+    pub refresher: tui::Refresher
 }
 
 impl ProgramState {
