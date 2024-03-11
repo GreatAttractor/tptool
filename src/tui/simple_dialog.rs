@@ -16,29 +16,20 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use crate::{cclone, mount::Mount, tui, tui::WithShadow, upgrade};
+use crate::{cclone, tui, tui::WithShadow};
 use cursive::{
-    align::HAlign,
     Cursive,
-    reexports::enumset,
-    Rect,
-    theme,
-    theme::Theme,
-    Vec2,
-    View,
+    event,
     view::{Nameable, Offset, Position, Resizable},
     views::{
         Dialog,
-        DummyView,
         EditView,
-        FixedLayout,
         LinearLayout,
-        OnLayoutView,
-        Panel,
-        TextContent,
+        OnEventView,
         TextView,
         ThemedView
     },
+    With
 };
 use std::rc::Rc;
 
@@ -73,6 +64,8 @@ pub fn show<F: Fn(&mut Cursive, &str) + 'static>(
                 curs.pop_layer();
             })
             .dismiss_button("Cancel")
+            .wrap_with(OnEventView::new)
+            .on_event(event::Event::Key(event::Key::Esc), |curs| { curs.pop_layer(); })
         ))
     );
 }

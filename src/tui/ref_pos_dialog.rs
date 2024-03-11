@@ -37,6 +37,7 @@ use crate::{
     upgrade
 };
 use cursive::{
+    event,
     view::{Nameable, Resizable, View},
     views::{
         Button,
@@ -45,6 +46,7 @@ use cursive::{
         DummyView,
         EditView,
         LinearLayout,
+        OnEventView,
         SelectView,
         TextContent,
         TextView,
@@ -63,40 +65,42 @@ pub fn dialog(
 ) -> impl View {
     let preset_name = TextContent::new("(none)");
 
-    Dialog::around(
-        LinearLayout::vertical()
-            .child(
-                LinearLayout::horizontal()
-                    .child(TextView::new("Preset:"))
-                    .child(DummyView{}.min_width(1))
-                    .child(TextView::new_with_content(preset_name.clone()))
-                    .child(DummyView{}.min_width(1))
-                    .child(Button::new("Load", cclone!(
-                        [config, preset_name],
-                        move |curs| on_load_preset(curs, preset_name.clone(), config.clone())
-                    )))
-                    .child(Button::new("Store", cclone!([config, preset_name], move |curs| {
-                        on_store_preset(curs, preset_name.clone(), config.clone());
-                    })))
-            )
-            .child(
-                LinearLayout::horizontal()
-                    .child(TextView::new("azimuth:  ")) // TODO: ensure alignment of `EditView`s
-                    .child(EditView::new()
-                        .with_name(names::REF_POS_AZ)
-                        .fixed_width(10)
-                    )
-                    .child(TextView::new("°"))
-            )
-            .child(
-                LinearLayout::horizontal()
-                    .child(TextView::new("altitude: "))
-                    .child(EditView::new()
-                        .with_name(names::REF_POS_ALT)
-                        .fixed_width(10)
-                    )
-                    .child(TextView::new("°"))
-            )
+    Dialog::around(LinearLayout::vertical()
+        .child(
+            LinearLayout::horizontal()
+                .child(TextView::new("Preset:"))
+                .child(DummyView{}.min_width(1))
+                .child(TextView::new_with_content(preset_name.clone()))
+                .child(DummyView{}.min_width(1))
+                .child(Button::new("Load", cclone!(
+                    [config, preset_name],
+                    move |curs| on_load_preset(curs, preset_name.clone(), config.clone())
+                )))
+                .child(Button::new("Store", cclone!([config, preset_name], move |curs| {
+                    on_store_preset(curs, preset_name.clone(), config.clone());
+                })))
+        )
+        .child(DummyView{}.min_height(1))
+        .child(Button::new("Calc. from lat., lon. of observer and target", |_| {}))
+        .child(DummyView{}.min_height(1))
+        .child(
+            LinearLayout::horizontal()
+                .child(TextView::new("azimuth:  ")) // TODO: ensure alignment of `EditView`s
+                .child(EditView::new()
+                    .with_name(names::REF_POS_AZ)
+                    .fixed_width(10)
+                )
+                .child(TextView::new("°"))
+        )
+        .child(
+            LinearLayout::horizontal()
+                .child(TextView::new("altitude: "))
+                .child(EditView::new()
+                    .with_name(names::REF_POS_ALT)
+                    .fixed_width(10)
+                )
+                .child(TextView::new("°"))
+        )
     )
     .button("OK", cclone!([tui, mount], move |curs| {
         upgrade!(tui, mount);
@@ -126,6 +130,10 @@ pub fn dialog(
     .title("Set current reference position")
     .wrap_with(CircularFocus::new)
     .wrap_tab()
+    .wrap_with(OnEventView::new)
+    .on_event(event::Event::Key(event::Key::Esc), crate::cclone!([tui],
+        move |curs| { upgrade!(tui); close_dialog(curs, &tui); }
+    ))
 }
 
 fn on_preset_chosen(
@@ -157,12 +165,15 @@ fn on_load_preset(curs: &mut cursive::Cursive, preset_name: TextContent, config:
     let dt = create_dialog_theme(curs);
     curs.screen_mut().add_transparent_layer(WithShadow::new(ThemedView::new(
         dt,
-        Dialog::around(sel_view).title("Choose preset")
+        Dialog::around(sel_view)
+            .title("Choose preset")
             .button("OK", cclone!([preset_name, config], move |curs| {
                 let idx = get_select_view_idx(curs, names::REF_POS_SEL_PRESET);
                 on_preset_chosen(curs, &preset_name, idx, config.clone());
             }))
             .dismiss_button("Cancel")
+            .wrap_with(OnEventView::new)
+            .on_event(event::Event::Key(event::Key::Esc), |curs| { curs.pop_layer(); })
     )));
 }
 

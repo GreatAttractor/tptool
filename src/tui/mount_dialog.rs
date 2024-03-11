@@ -26,6 +26,7 @@ use crate::{
     upgrade
 };
 use cursive::{
+    event,
     view::{Nameable, Resizable, View},
     views::{
         CircularFocus,
@@ -33,6 +34,7 @@ use cursive::{
         DummyView,
         EditView,
         LinearLayout,
+        OnEventView,
         RadioGroup,
         TextContent,
         TextView,
@@ -98,11 +100,14 @@ pub fn dialog(
         let connection_param = get_edit_view_str(curs, names::MOUNT_CONNECTION);
         on_connect_to_mount(curs, &tui, &mount, &config, *rb_group2.selection(), &connection_param, tracking.clone());
     }))
-
     .button("Cancel",crate::cclone!([tui], move |curs| { upgrade!(tui); close_dialog(curs, &tui); }))
     .title("Connect to mount")
     .wrap_with(CircularFocus::new)
     .wrap_tab()
+    .wrap_with(OnEventView::new)
+    .on_event(event::Event::Key(event::Key::Esc), crate::cclone!([tui],
+        move |curs| { upgrade!(tui); close_dialog(curs, &tui); }
+    ))
 }
 
 fn on_connect_to_mount(

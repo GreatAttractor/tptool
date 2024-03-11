@@ -25,12 +25,14 @@ use crate::{
     upgrade
 };
 use cursive::{
+    event,
     view::{Nameable, Resizable, View},
     views::{
         CircularFocus,
         Dialog,
         EditView,
         LinearLayout,
+        OnEventView,
         TextView,
     },
     With
@@ -59,4 +61,8 @@ pub fn dialog(
     .title("Zero position")
     .wrap_with(CircularFocus::new)
     .wrap_tab()
+    .wrap_with(OnEventView::new)
+    .on_event(event::Event::Key(event::Key::Esc), crate::cclone!([tui],
+        move |curs| { upgrade!(tui); close_dialog(curs, &tui); }
+    ))
 }
