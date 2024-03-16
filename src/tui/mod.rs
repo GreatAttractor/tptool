@@ -68,6 +68,12 @@ mod names {
     pub const REF_POS_ALT: &str = "ref_pos_altitude";
     pub const REF_POS_SEL_PRESET: &str = "ref_pos_selected_preset";
     pub const SIMPLE_DIALOG_TEXT: &str = "simple_dialog_text";
+    pub const OBS_LAT: &str = "observer_latitude";
+    pub const OBS_LON: &str = "observer_longitude";
+    pub const OBS_ELEVATION: &str = "observer_elevation";
+    pub const TARGET_LAT: &str = "target_latitude";
+    pub const TARGET_LON: &str = "target_longitude";
+    pub const TARGET_ELEVATION: &str = "target_elevation";
 }
 
 #[macro_export]

@@ -28,8 +28,6 @@ mod tui;
 use event_handling::on_tracking_state_changed;
 use std::{cell::RefCell, future::Future, rc::Rc};
 
-const MOUNT_SERVER_PORT: u16 = 45501;
-const DATA_SOURCE_PORT: u16 = 45500;
 const MAIN_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 const TARGET_LOG_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
 

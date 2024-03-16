@@ -58,7 +58,6 @@ pub fn dialog(
                     upgrade!(tui, config);
                     on_connect_to_data_source(curs, &tui, connection.clone(), &config, s);
                 }))
-
                 .with_name(names::SERVER_ADDR)
                 .fixed_width(20)
         )

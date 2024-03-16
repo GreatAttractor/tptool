@@ -16,6 +16,7 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+use cgmath::Deg;
 use crate::{
     cclone,
     config::Configuration,
@@ -37,6 +38,7 @@ use crate::{
     upgrade
 };
 use cursive::{
+    align::HAlign,
     event,
     view::{Nameable, Resizable, View},
     views::{
@@ -47,6 +49,8 @@ use cursive::{
         EditView,
         LinearLayout,
         OnEventView,
+        PaddedView,
+        Panel,
         SelectView,
         TextContent,
         TextView,
@@ -54,9 +58,9 @@ use cursive::{
     },
     With
 };
-use pointing_utils::uom;
+use pointing_utils::{cgmath, GeoPos, LatLon, uom};
 use std::{cell::RefCell, rc::{Rc, Weak}};
-use uom::si::{f64, angle};
+use uom::si::{f64, length};
 
 pub fn dialog(
     tui: Weak<RefCell<Option<TuiData>>>,
@@ -81,7 +85,10 @@ pub fn dialog(
                 })))
         )
         .child(DummyView{}.min_height(1))
-        .child(Button::new("Calc. from lat., lon. of observer and target", |_| {}))
+        .child(Button::new(
+            "Calc. from lat., lon. of observer and target",
+            |curs| on_calc_from_observer_and_target_pos(curs)
+        ))
         .child(DummyView{}.min_height(1))
         .child(
             LinearLayout::horizontal()
@@ -198,4 +205,104 @@ fn on_store_preset(curs: &mut cursive::Cursive, preset_name: TextContent, config
     } else {
         msg_box(curs, "Invalid azimuth or altitude value.", "Error");
     }
+}
+
+fn on_calc_from_observer_and_target_pos(curs: &mut cursive::Cursive) {
+    let dt = create_dialog_theme(curs);
+    curs.screen_mut().add_transparent_layer(WithShadow::new(ThemedView::new(
+        dt,
+        Dialog::around(LinearLayout::vertical()
+            .child(Panel::new(PaddedView::lrtb(0, 0, 1, 1,
+                LinearLayout::horizontal()
+                    .child(TextView::new("lat.: "))
+                    .child(EditView::new()
+                        .with_name(names::OBS_LAT)
+                        .fixed_width(10)
+                    )
+                    .child(TextView::new("°"))
+                    .child(DummyView{}.min_width(1))
+                    .child(TextView::new("lon.: "))
+                    .child(EditView::new()
+                        .with_name(names::OBS_LON)
+                        .fixed_width(10)
+                        )
+                    .child(TextView::new("°"))
+                    .child(DummyView{}.min_width(1))
+                    .child(TextView::new("elev.: "))
+                    .child(EditView::new()
+                        .with_name(names::OBS_ELEVATION)
+                        .fixed_width(10)
+                    )
+                    .child(TextView::new(" m"))
+            )).title("Observer").title_position(HAlign::Left))
+            .child(Panel::new(PaddedView::lrtb(0, 0, 1, 1,
+                LinearLayout::horizontal()
+                    .child(TextView::new("lat.: "))
+                    .child(EditView::new()
+                        .with_name(names::TARGET_LAT)
+                        .fixed_width(10)
+                    )
+                    .child(TextView::new("°"))
+                    .child(DummyView{}.min_width(1))
+                    .child(TextView::new("lon.: "))
+                    .child(EditView::new()
+                        .with_name(names::TARGET_LON)
+                        .fixed_width(10)
+                    )
+                    .child(TextView::new("°"))
+                    .child(DummyView{}.min_width(1))
+                    .child(TextView::new("elev.: "))
+                    .child(EditView::new()
+                        .with_name(names::TARGET_ELEVATION)
+                        .fixed_width(10)
+                    )
+                    .child(TextView::new(" m"))
+            )).title("Target").title_position(HAlign::Left))
+        )
+        .title("Calculate mount position")
+        .button("OK", |curs| {
+            let obs_lat_str = get_edit_view_str(curs, names::OBS_LAT);
+            let obs_lon_str = get_edit_view_str(curs, names::OBS_LON);
+            let obs_el_str = get_edit_view_str(curs, names::OBS_ELEVATION);
+
+            let target_lat_str = get_edit_view_str(curs, names::TARGET_LAT);
+            let target_lon_str = get_edit_view_str(curs, names::TARGET_LON);
+            let target_el_str = get_edit_view_str(curs, names::TARGET_ELEVATION);
+
+            if let Err(e) = || -> Result<(), String> {
+                let parse = |s: Rc<String>| (*s).parse::<f64>().map_err(|_| format!("invalid value: {}", *s));
+
+                let obs_lat = parse(obs_lat_str)?;
+                let obs_lon = parse(obs_lon_str)?;
+                let obs_el = parse(obs_el_str)?;
+
+                let target_lat = parse(target_lat_str)?;
+                let target_lon = parse(target_lon_str)?;
+                let target_el = parse(target_el_str)?;
+
+                let (az, alt) = data::calc_az_alt_between_points(
+                    &GeoPos{
+                        lat_lon: LatLon{ lat: Deg(obs_lat), lon: Deg(obs_lon) },
+                        elevation: f64::Length::new::<length::meter>(obs_el)
+                    },
+                    &GeoPos{
+                        lat_lon: LatLon{ lat: Deg(target_lat), lon: Deg(target_lon) },
+                        elevation: f64::Length::new::<length::meter>(target_el)
+                    }
+                );
+
+                set_edit_view_str(curs, names::REF_POS_AZ, format!("{:.04}", as_deg(az)));
+                set_edit_view_str(curs, names::REF_POS_ALT, format!("{:.04}", as_deg(alt)));
+
+                curs.pop_layer();
+
+                Ok(())
+            }() {
+                msg_box(curs, &format!("Error calculating position: {}.", e), "Error");
+            }
+        })
+        .dismiss_button("Cancel")
+        .wrap_with(OnEventView::new)
+        .on_event(event::Event::Key(event::Key::Esc), |curs| { curs.pop_layer(); })
+    )));
 }
