@@ -18,6 +18,8 @@
 
 use cgmath::{Deg, EuclideanSpace, InnerSpace, Point3, Rad, Vector3};
 use crate::{
+    controller,
+    controller::{EventValue, SourceAction, StickEvent, TargetAction},
     cursive_stepper::Running,
     data,
     data::{as_deg, as_deg_per_s, ProgramState, TimerId, timers},
@@ -30,6 +32,7 @@ use crate::{
 };
 use pointing_utils::{cgmath, TargetInfoMessage, uom};
 use std::{cell::RefCell, future::Future, rc::{Rc, Weak}, task::{Poll, Waker}};
+use strum::IntoEnumIterator;
 use uom::{si::f64, si::{angle, angular_velocity, length, velocity}};
 
 pub const SLEW_SPEED_CHANGE_FACTOR: f64 = 1.5;
@@ -125,12 +128,13 @@ fn on_refresher(state: &mut ProgramState, _: ()) -> Poll<()> {
 }
 
 fn on_controller_connected(state: &mut ProgramState, mut controller: stick::Controller) -> Poll<()> {
-    if controller.id() == CONTROLLER_ID {
-        let ctrl_str = format!("[{:016X}] {}", controller.id(), controller.name());
-        log::info!("new controller: {}", ctrl_str);
-        state.tui().as_ref().unwrap().text_content.controller_name.set_content(ctrl_str);
-        state.refresh_tui();
-    }
+
+    let ctrl_str = format!("[{:016X}] {}", controller.id(), controller.name());
+    log::info!("new controller: {}", ctrl_str);
+    state.tui().as_ref().unwrap().text_content.controller_name.set_content(ctrl_str);
+    state.refresh_tui();
+
+    state.controller_names.push(controller.name().into());
     state.controllers.push(
         Box::pin(pasts::notify::poll_fn(move |ctx| {
             match std::pin::Pin::new(&mut controller).poll(ctx) {
@@ -139,7 +143,6 @@ fn on_controller_connected(state: &mut ProgramState, mut controller: stick::Cont
             }
         })),
     );
-
 
     std::task::Poll::Pending
 }
@@ -162,58 +165,58 @@ pub fn on_toggle_tracking(tracking: &TrackingController) {
     }
 }
 
-fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::Event))) -> std::task::Poll<()> {
-    let (index, (id, event)) = idx_val;
+fn on_controller_action(state: &mut ProgramState, action: TargetAction, value: EventValue) {
+    let mut slew_change = false;
 
-    state.tui().as_ref().unwrap().text_content.controller_event.set_content(format!("{}", event)); //TESTING #########
-    state.refresh_tui();
+    match action {
+        TargetAction::MountAxis1 => if let EventValue::Analog(value) = value {
+            state.slewing.axis1_rel = if state.config.borrow().mount_axis1_reversed() { -value } else { value };
+            slew_change = true;
+        },
 
-    if let stick::Event::Disconnect = event {
-        if id == CONTROLLER_ID {
-            state.tui().as_ref().unwrap().text_content.controller_name.set_content("(disconnected)");
-            state.refresh_tui();
-        }
-        state.controllers.remove(index);
-    } else {
-        let mut slew_change = false;
+        TargetAction::MountAxis2 => if let EventValue::Analog(value) = value {
+            state.slewing.axis2_rel = if state.config.borrow().mount_axis2_reversed() { -value } else { value };
+            slew_change = true;
+        },
 
-        // TODO: make all actions configurable
-        match event {
-            stick::Event::JoyX(value) => {
-                state.slewing.axis1_rel = value;
-                slew_change = true;
-            },
-            stick::Event::JoyY(value) => {
-                state.slewing.axis2_rel = -value; // TODO: make axis reversals configurable
-                slew_change = true;
-            },
-            stick::Event::PovLeft(pressed) => {
-                state.slewing.axis1_rel = if pressed { -1.0 } else { 0.0 };
-                slew_change = true;
-            },
-            stick::Event::PovRight(pressed) => {
-                state.slewing.axis1_rel = if pressed { 1.0 } else { 0.0 };
-                slew_change = true;
-            },
-            stick::Event::PovDown(pressed) => {
-                state.slewing.axis2_rel = if pressed { -1.0 } else { 0.0 };
-                slew_change = true;
-            },
-            stick::Event::PovUp(pressed) => {
-                state.slewing.axis2_rel = if pressed { 1.0 } else { 0.0 };
-                slew_change = true;
-            },
-            stick::Event::BumperL(pressed) => {
-                if pressed { state.tracking.cancel_adjustment(); }
-            },
-            stick::Event::BumperR(pressed) => {
-                if pressed { state.tracking.save_adjustment(); }
-            },
-            stick::Event::ActionV(pressed) => if pressed { on_stop_mount(&state.mount, &state.tracking.controller()); },
-            stick::Event::ActionB(pressed) => if pressed {
-                on_toggle_tracking(&state.tracking.controller());
-            },
-            stick::Event::ActionH(pressed) => if pressed {
+        TargetAction::MountAxis1Pos => if let EventValue::Discrete(pressed) = value {
+            state.slewing.axis1_rel = if pressed { 1.0 } else { 0.0 };
+            slew_change = true;
+        },
+
+        TargetAction::MountAxis1Neg => if let EventValue::Discrete(pressed) = value {
+            state.slewing.axis1_rel = if pressed { -1.0 } else { 0.0 };
+            slew_change = true;
+        },
+
+        TargetAction::MountAxis2Pos => if let EventValue::Discrete(pressed) = value {
+            state.slewing.axis2_rel = if pressed { 1.0 } else { 0.0 };
+            slew_change = true;
+        },
+
+        TargetAction::MountAxis2Neg => if let EventValue::Discrete(pressed) = value {
+            state.slewing.axis2_rel = if pressed { -1.0 } else { 0.0 };
+            slew_change = true;
+        },
+
+        TargetAction::StopMount => if let EventValue::Discrete(pressed) = value {
+            if pressed { on_stop_mount(&state.mount, &state.tracking.controller()); }
+        },
+
+        TargetAction::ToggleTracking => if let EventValue::Discrete(pressed) = value {
+            if pressed { on_toggle_tracking(&state.tracking.controller()); }
+        },
+
+        TargetAction::SaveAdjustment => if let EventValue::Discrete(pressed) = value {
+            if pressed { state.tracking.save_adjustment(); }
+        },
+
+        TargetAction::CancelAdjustment => if let EventValue::Discrete(pressed) = value {
+            if pressed { state.tracking.cancel_adjustment(); }
+        },
+
+        TargetAction::IncreaseSlewSpeed => if let EventValue::Discrete(pressed) = value {
+            if pressed {
                 change_slew_speed(
                     SLEW_SPEED_CHANGE_FACTOR,
                     Rc::downgrade(&state.slew_speed),
@@ -221,8 +224,11 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
                     &state.tracking.controller(),
                     state.refresher.request()
                 );
-            },
-            stick::Event::ActionA(pressed) => if pressed {
+            }
+        },
+
+        TargetAction::DecreaseSlewSpeed => if let EventValue::Discrete(pressed) = value {
+            if pressed {
                 change_slew_speed(
                     1.0 / SLEW_SPEED_CHANGE_FACTOR,
                     Rc::downgrade(&state.slew_speed),
@@ -230,22 +236,52 @@ fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::E
                     &state.tracking.controller(),
                     state.refresher.request()
                 );
-            },
-            _ => ()
-        }
+            }
+        },
+    }
 
-        if slew_change {
-            if state.tracking.is_active() {
-                state.tracking.adjust_slew(state.slewing.axis1_rel, state.slewing.axis2_rel);
-            } else if state.mount.borrow().is_some() {
-                let spd = *state.slew_speed.borrow();
-                if let Err(e) = state.mount.borrow_mut().as_mut().unwrap().slew(
-                    spd * state.slewing.axis1_rel,
-                    spd * state.slewing.axis2_rel
-                ) {
-                    log::error!("error when slewing: {}", e);
+    if slew_change {
+        if state.tracking.is_active() {
+            state.tracking.adjust_slew(state.slewing.axis1_rel, state.slewing.axis2_rel);
+        } else if state.mount.borrow().is_some() {
+            let spd = *state.slew_speed.borrow();
+            if let Err(e) = state.mount.borrow_mut().as_mut().unwrap().slew(
+                spd * state.slewing.axis1_rel,
+                spd * state.slewing.axis2_rel
+            ) {
+                log::error!("error when slewing: {}", e);
+            }
+        }
+    }
+}
+
+fn on_controller_event(state: &mut ProgramState, idx_val: (usize, (u64, stick::Event))) -> std::task::Poll<()> {
+    let (index, (id, event)) = idx_val;
+
+    let ctrl_str = format!("[{:016X}] {}", id, state.controller_names[index]);
+    log::info!("new controller: {}", ctrl_str);
+    state.tui().as_ref().unwrap().text_content.controller_name.set_content(ctrl_str);
+    state.refresh_tui();
+
+
+    state.tui().as_ref().unwrap().text_content.controller_event.set_content(format!("{}", event));
+    state.refresh_tui();
+
+    if let stick::Event::Disconnect = event {
+        state.controllers.remove(index);
+        state.controller_names.remove(index);
+    } else {
+        let mut target_action: Option<TargetAction> = None;
+        for t_act in TargetAction::iter() {
+            if let Some(src_action) = &state.ctrl_actions.get(t_act) {
+                if src_action.matches(&StickEvent{ id, event }) {
+                    target_action = Some(t_act); break;
                 }
             }
+        }
+
+        if let Some(target_action) = target_action {
+            on_controller_action(state, target_action, controller::event_value(&event));
         }
     }
 

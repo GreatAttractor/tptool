@@ -16,13 +16,15 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-use crate::{data, data::{as_deg, deg}};
+use crate::{controller, controller::{ActionAssignments, TargetAction}, data, data::{as_deg, deg}};
 use configparser::ini::Ini;
 use std::path::{Path, PathBuf};
+use strum::IntoEnumIterator;
 
 const CONFIG_FILE_NAME: &str = "tptool.cfg";
 
 mod sections {
+    pub const CONTROLLER: &str = "Controller";
     pub const MAIN: &str = "Main";
     pub const REF_POS_PRESETS: &str = "ReferencePositionPresets";
 }
@@ -33,6 +35,8 @@ mod keys {
     pub const MOUNT_IOPTRON_DEVICE: &str = "MountIoptronDevice";
     pub const DATA_SOURCE_ADDRESS: &str = "DataSourceAddr";
     pub const REF_POS_PRESET: &str = "preset";
+    pub const MOUNT_AXIS1_REVERSED: &str = "MountAxis1Reversed";
+    pub const MOUNT_AXIS2_REVERSED: &str = "MountAxis2Reversed";
 }
 
 const MAX_NUM_REF_POS_PRESETS: usize = 128;
@@ -132,16 +136,45 @@ impl Configuration {
         );
     }
 
-    // pub fn set_ref_pos_presets(&mut self, presets: &[data::RefPositionPreset]) {
-    //     self.config_file.remove_section(sections::REF_POS_PRESETS);
-    //     for (idx, preset) in presets.iter().enumerate() {
-    //         self.config_file.set(
-    //             sections::REF_POS_PRESETS,
-    //             &format!("{}{}", keys::REF_POS_PRESET, idx),
-    //             Some(format!("{};{};{}", as_deg(preset.azimuth), as_deg(preset.altitude), preset.name))
-    //         );
-    //     }
-    // }
+    pub fn save_controller_actions(&mut self, actions: &ActionAssignments) {
+        for target_action in TargetAction::iter() {
+            let s = if let Some(src_action) = actions.get(target_action) {
+                src_action.serialize()
+            } else {
+                "".to_string()
+            };
+            self.set_string(sections::CONTROLLER, target_action.config_key(), &s);
+        }
+    }
+
+    pub fn controller_actions(&self) -> ActionAssignments {
+        use crate::controller::SourceAction;
+
+        let mut result = ActionAssignments::new();
+
+        for target_action in TargetAction::iter() {
+            if let Some(s) = self.get_string(sections::CONTROLLER, target_action.config_key()).map(|s| s.to_string()) {
+                match s.parse::<SourceAction>() {
+                    Ok(src_action) => result.set(target_action, Some(src_action)),
+                    Err(e) => log::warn!("invalid action assignment: {}", e)
+                }
+            }
+        }
+
+        result
+    }
+
+    pub fn mount_axis1_reversed(&self) -> bool {
+        self.config_file.getbool(sections::CONTROLLER, keys::MOUNT_AXIS1_REVERSED)
+            .unwrap_or(Some(false))
+            .unwrap_or(false)
+    }
+
+    pub fn mount_axis2_reversed(&self) -> bool {
+        self.config_file.getbool(sections::CONTROLLER, keys::MOUNT_AXIS2_REVERSED)
+            .unwrap_or(Some(false))
+            .unwrap_or(false)
+    }
 }
 
 impl Drop for Configuration {

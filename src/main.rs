@@ -17,6 +17,7 @@
 //
 
 mod config;
+mod controller;
 mod cursive_stepper;
 mod data;
 mod data_receiver;
@@ -40,10 +41,13 @@ fn main() {
     let mount_spd = Rc::new(RefCell::new(data::MountSpeed::new()));
     let target = Rc::new(RefCell::new(None));
     let tui = Rc::new(RefCell::new(None));
+    let config = Rc::new(RefCell::new(config::Configuration::new()));
+    let ctrl_actions = config.borrow().controller_actions();
 
     let mut state = data::ProgramState{
-        config: Rc::new(RefCell::new(config::Configuration::new())),
+        config,
         controllers: vec![],
+        controller_names: vec![],
         cursive_stepper: cursive_stepper::CursiveRunnableStepper{ curs: curs.into_runner() },
         data_receiver,
         listener: Box::pin(pasts::notify::poll_fn(move |ctx| std::pin::Pin::new(&mut listener).poll(ctx))),
@@ -64,7 +68,8 @@ fn main() {
             Box::new(cclone!([@weak tui], move |running| on_tracking_state_changed(running, tui.clone())))
         ),
         tui,
-        refresher: tui::Refresher::new()
+        refresher: tui::Refresher::new(),
+        ctrl_actions
     };
 
     tui::init(&mut state);
