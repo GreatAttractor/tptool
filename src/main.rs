@@ -34,6 +34,10 @@ const TARGET_LOG_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from
 
 fn main() {
     set_up_logging();
+
+    #[cfg(target_os = "windows")]
+    unsafe { pdcurses::resize_term(20, 118) };
+
 	let curs = cursive::default();
     let data_receiver = data_receiver::DataReceiver::new();
     let mut listener = stick::Listener::default();

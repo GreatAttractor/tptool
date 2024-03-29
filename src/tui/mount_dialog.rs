@@ -39,7 +39,8 @@ use cursive::{
         TextContent,
         TextView,
     },
-    With
+    With,
+    theme
 };
 use std::{cell::RefCell, rc::{Rc, Weak}};
 
@@ -85,7 +86,7 @@ pub fn dialog(
             .child(rb_group.button(MountType::Ioptron, "iOptron"))
             .child(DummyView{})
             .child(param_descr)
-            .child(EditView::new()
+            .child(tui::styled_edit_view()
                 .content(config.upgrade().unwrap().borrow().mount_simulator_addr().unwrap_or("".into()))
                 .on_submit(cclone!([tui, mount, config, tracking], move |curs, s| {
                     upgrade!(tui, mount, config);

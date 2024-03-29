@@ -20,6 +20,7 @@ use crate::{
     cclone,
     config::Configuration,
     data_receiver,
+    tui,
     tui::{
         close_dialog,
         get_edit_view_str,
@@ -52,7 +53,7 @@ pub fn dialog(
     Dialog::around(
         LinearLayout::horizontal()
             .child(TextView::new("Server address:"))
-            .child(EditView::new()
+            .child(tui::styled_edit_view()
                 .content(config.upgrade().unwrap().borrow().data_source_addr().unwrap_or("".into()))
                 .on_submit(cclone!([tui, connection, config], move |curs, s| {
                     upgrade!(tui, config);

@@ -10,7 +10,8 @@ authors = ["Filip Szczerek <ga.software@yahoo.com>"]
 async-std = "1.12.0"
 chrono = "0.4.12"
 configparser = "3.0.4"
-cursive = "0.20.0"
+# currently `ncurses` doesn't build on MS Windows (missing `LC_MESSAGES` const in `libc`)
+cursive = { version = "0.20.0", default-features = false, features = ["pancurses-backend"] }
 dirs = "5.0.1"
 futures = "0.3.30"
 log = "0.4.20"
@@ -24,3 +25,6 @@ stick = { git = "https://github.com/GreatAttractor/stick.git", rev = "6269405a7d
 strum = { version = "0.25.0", features = ["derive"] }
 strum_macros = "0.25.0"
 time = "0.3.30" # why needed explicitly? simplelog's use not enough?
+
+[target.'cfg(windows)'.dependencies]
+pdcurses-sys = "0.7.1" # needed for pdcurses::resize_term

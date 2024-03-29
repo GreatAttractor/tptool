@@ -199,6 +199,15 @@ impl Notify for Refresher {
     }
 }
 
+// TODO use new native styling functionality (`theme::PaletteStyle::EditableTextCursor`? etc.)
+// once it lands in cursive >0.20.0
+pub fn styled_edit_view() -> EditView {
+    EditView::new().style(theme::ColorStyle{
+        front: theme::ColorType::Color(theme::Color::Rgb(50, 50, 200)),
+        back: theme::ColorType::Color(theme::Color::Rgb(230, 230, 230))
+    })
+}
+
 pub fn get_edit_view_str(curs: &mut cursive::Cursive, name: &str) -> Rc<String> {
     curs.call_on_name(name, |v: &mut EditView| { v.get_content() }).unwrap()
 }
@@ -463,6 +472,7 @@ fn create_main_theme(base: &Theme) -> Theme {
     theme.palette[theme::PaletteColor::Background] = theme::Color::Rgb(30, 30, 30);
     theme.palette[theme::PaletteColor::TitlePrimary] = theme::Color::Rgb(255, 255, 255);
     theme.palette[theme::PaletteColor::Primary] = theme::Color::Rgb(180, 180, 180);
+
     theme
 }
 

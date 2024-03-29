@@ -48,7 +48,7 @@ pub fn show<F: Fn(&mut Cursive, &str) + 'static>(
             Dialog::around(
                 LinearLayout::horizontal()
                     .child(TextView::new(text))
-                    .child(EditView::new()
+                    .child(tui::styled_edit_view()
                         .on_submit(cclone!([on_accept], move |curs, value| {
                             on_accept(curs, value);
                             curs.pop_layer();
