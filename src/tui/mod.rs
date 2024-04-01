@@ -16,6 +16,7 @@
 // along with TPTool.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+mod about_dialog;
 mod data_source_dialog;
 mod mount_dialog;
 mod ref_pos_dialog;
@@ -141,8 +142,8 @@ impl CommandBarBuilder {
         }
     }
 
-    fn command(mut self, highlighted: char, descr: &str) -> CommandBarBuilder {
-        for s in [' ', highlighted, ' '] {
+    fn command(mut self, highlighted: &str, descr: &str) -> CommandBarBuilder {
+        for s in [" ", highlighted, " " ] {
             self.contents.append_styled(s, self.highlight);
         }
         for s in [" ", descr, "  "] {
@@ -308,6 +309,9 @@ pub fn init(state: &mut ProgramState) {
         }
     ));
 
+    curs.add_global_callback('a', cclone!([@weak (state.tui) as tui], move |curs| {
+        show_dlg_on_global_callback!(about_dialog::dialog, curs, tui.clone(),);
+    }));
 
     let main_theme = create_main_theme(curs.current_theme());
     curs.set_theme(main_theme);
@@ -329,13 +333,14 @@ fn init_command_bar(curs: &mut cursive::Cursive) {
             FixedLayout::new().child(
                 Rect::from_point(Vec2::zero()),
                 CommandBarBuilder::new()
-                    .command('T', "Toggle tracking")
-                    .command('S', "Stop slewing")
-                    .command('D', "Data source")
-                    .command('M', "Mount")
-                    .command('R', "Ref. position")
-                    .command('Z', "Zero position")
-                    .command('Q', "Quit")
+                    .command("T", "Toggle tracking")
+                    .command("S", "Stop slewing")
+                    .command("D", "Data source")
+                    .command("M", "Mount")
+                    .command("R", "Ref. position")
+                    .command("Z", "Zero position")
+                    .command("Q", "Quit")
+                    .command("A", "About")
                     .build()
             ),
             |layout, size| {

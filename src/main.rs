@@ -32,6 +32,8 @@ use std::{cell::RefCell, future::Future, rc::Rc};
 const MAIN_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 const TARGET_LOG_TIMER_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
 
+pub const VERSION_STRING: &'static str = include_str!(concat!(env!("OUT_DIR"), "/version"));
+
 fn main() {
     set_up_logging();
 
