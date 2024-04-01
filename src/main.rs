@@ -38,7 +38,7 @@ fn main() {
     set_up_logging();
 
     #[cfg(target_os = "windows")]
-    unsafe { pdcurses::resize_term(20, 118) };
+    unsafe { pdcurses::resize_term(20, 105) };
 
 	let curs = cursive::default();
     let data_receiver = data_receiver::DataReceiver::new();
