@@ -52,7 +52,7 @@ enum MountType {
 impl MountType {
     fn connection_param_descr(&self) -> &'static str {
         match self {
-            MountType::Simulator => "IP address:",
+            MountType::Simulator => "address and port:",
             MountType::Ioptron => "Serial device (e.g., \"/dev/ttyUSB0\" on Linux\nor \"COM3\" on Windows):",
         }
     }

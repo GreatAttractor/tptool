@@ -36,7 +36,7 @@ use cursive::{
     views::{
         CircularFocus,
         Dialog,
-        EditView,
+        DummyView,
         LinearLayout,
         OnEventView,
         TextView,
@@ -52,7 +52,8 @@ pub fn dialog(
 ) -> impl View {
     Dialog::around(
         LinearLayout::horizontal()
-            .child(TextView::new("Server address:"))
+            .child(TextView::new("Server address and port:"))
+            .child(DummyView{}.min_width(1))
             .child(tui::styled_edit_view()
                 .content(config.upgrade().unwrap().borrow().data_source_addr().unwrap_or("".into()))
                 .on_submit(cclone!([tui, connection, config], move |curs, s| {
