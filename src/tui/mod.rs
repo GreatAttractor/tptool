@@ -339,7 +339,7 @@ fn init_command_bar(curs: &mut cursive::Cursive) {
                     .build()
             ),
             |layout, size| {
-                let rect = Rect::from_size((0, size.y - 1), (size.x, 1));
+                let rect = Rect::from_size((0, size.y - 2), (size.x, 2));
                 layout.set_child_position(0, rect);
                 layout.layout(size);
             },

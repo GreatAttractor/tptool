@@ -39,8 +39,7 @@ use cursive::{
         TextContent,
         TextView,
     },
-    With,
-    theme
+    With
 };
 use std::{cell::RefCell, rc::{Rc, Weak}};
 
