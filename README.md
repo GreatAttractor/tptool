@@ -5,9 +5,15 @@ Copyright (C) 2024 Filip Szczerek (ga.software@yahoo.com)
 
 ![Main window](screenshot.png)
 
+# Tutorials
+
+[EN](doc/tutorial_en.md)
+
+[PL](doc/tutorial_pl.md)
 
 # TODOs
 
 - set joystick dead zone
 - allow choosing which axis is the primary one
 - stop tracking on sudden target position change (meaning: data source has probably switched to another target)
+- Sun avoidance using ephemerides
